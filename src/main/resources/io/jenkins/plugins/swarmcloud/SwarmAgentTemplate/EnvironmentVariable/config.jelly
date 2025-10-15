@@ -1,0 +1,14 @@
+<?jelly escape='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+    <f:entry title="Name" field="name">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Value" field="value">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry>
+        <f:repeatableDeleteButton/>
+    </f:entry>
+</j:jelly>

@@ -1,0 +1,28 @@
+<?jelly escape='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+    <f:entry title="Type" field="type">
+        <f:select>
+            <f:option value="volume" selected="${instance.type == 'volume'}">Volume</f:option>
+            <f:option value="bind" selected="${instance.type == 'bind'}">Bind Mount</f:option>
+            <f:option value="tmpfs" selected="${instance.type == 'tmpfs'}">tmpfs</f:option>
+        </f:select>
+    </f:entry>
+
+    <f:entry title="Source" field="source"
+             description="Volume name or host path">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Target" field="target"
+             description="Container path">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Read Only" field="readOnly">
+        <f:checkbox/>
+    </f:entry>
+
+    <f:entry>
+        <f:repeatableDeleteButton/>
+    </f:entry>
+</j:jelly>

@@ -1,0 +1,18 @@
+<?jelly escape='true'?>
+<div>
+    <p>
+        Swarm Agents Cloud plugin provisions Jenkins agents on a Docker Swarm cluster.
+    </p>
+    <p>
+        Features:
+    </p>
+    <ul>
+        <li>WebSocket-based agent connections</li>
+        <li>Real-time cluster monitoring</li>
+        <li>Configuration as Code (JCasC) support</li>
+        <li>Resource constraints (CPU, memory limits)</li>
+        <li>Volume and bind mounts</li>
+        <li>Placement constraints</li>
+        <li>Per-template instance limits</li>
+    </ul>
+</div>

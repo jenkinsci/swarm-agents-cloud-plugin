@@ -1,0 +1,41 @@
+<?jelly escape='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+
+    <f:entry title="Name" field="name">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Docker Host" field="dockerHost"
+             description="Docker Swarm manager URL (e.g., tcp://swarm-manager:2376)">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Credentials" field="credentialsId"
+             description="Docker TLS credentials (optional)">
+        <f:select/>
+    </f:entry>
+
+    <f:entry title="Jenkins URL" field="jenkinsUrl"
+             description="URL for agents to connect to Jenkins (leave empty to use global URL)">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Swarm Network" field="swarmNetwork"
+             description="Docker network for agent containers">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Max Concurrent Agents" field="maxConcurrentAgents"
+             description="Maximum number of agents that can run simultaneously">
+        <f:number default="10" min="1" max="100"/>
+    </f:entry>
+
+    <f:validateButton title="Test Connection" progress="Testing..."
+                      method="testConnection"
+                      with="dockerHost,credentialsId"/>
+
+    <f:entry title="Agent Templates">
+        <f:repeatableProperty field="templates" add="Add Template"/>
+    </f:entry>
+
+</j:jelly>

@@ -1,0 +1,77 @@
+<?jelly escape='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+
+    <f:entry title="Name" field="name">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Docker Image" field="image"
+             description="Docker image for the agent (e.g., jenkins/inbound-agent:latest)">
+        <f:textbox default="jenkins/inbound-agent:latest"/>
+    </f:entry>
+
+    <f:entry title="Labels" field="labelString"
+             description="Space-separated list of labels for this agent template">
+        <f:textbox/>
+    </f:entry>
+
+    <f:entry title="Usage Mode" field="mode">
+        <f:enum>${it.description}</f:enum>
+    </f:entry>
+
+    <f:entry title="Remote FS Root" field="remoteFs"
+             description="Agent working directory inside the container">
+        <f:textbox default="/home/jenkins/agent"/>
+    </f:entry>
+
+    <f:entry title="Number of Executors" field="numExecutors">
+        <f:number default="1" min="1" max="10"/>
+    </f:entry>
+
+    <f:entry title="Max Instances" field="maxInstances"
+             description="Maximum number of containers from this template">
+        <f:number default="5" min="1" max="100"/>
+    </f:entry>
+
+    <f:entry title="Command" field="command"
+             description="Override container command (optional)">
+        <f:textbox/>
+    </f:entry>
+
+    <f:advanced>
+        <f:section title="Resource Constraints">
+            <f:entry title="CPU Limit" field="cpuLimit"
+                     description="CPU limit (e.g., 2.0 for 2 CPUs)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Memory Limit" field="memoryLimit"
+                     description="Memory limit (e.g., 4g, 512m)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="CPU Reservation" field="cpuReservation"
+                     description="CPU reservation (guaranteed)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Memory Reservation" field="memoryReservation"
+                     description="Memory reservation (guaranteed)">
+                <f:textbox/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Mounts">
+            <f:entry title="Mounts">
+                <f:repeatableProperty field="mounts" add="Add Mount"/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Environment Variables">
+            <f:entry title="Environment Variables">
+                <f:repeatableProperty field="environmentVariables" add="Add Variable"/>
+            </f:entry>
+        </f:section>
+    </f:advanced>
+
+</j:jelly>
