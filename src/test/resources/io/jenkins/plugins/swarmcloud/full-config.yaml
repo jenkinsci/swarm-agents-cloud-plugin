@@ -1,0 +1,75 @@
+jenkins:
+  clouds:
+    - swarmAgentsCloud:
+        name: "production-swarm"
+        dockerHost: "tcp://swarm-manager.prod.local:2376"
+        credentialsId: "docker-tls-creds"
+        jenkinsUrl: "https://jenkins.prod.local"
+        swarmNetwork: "jenkins-agents-network"
+        maxConcurrentAgents: 50
+        templates:
+          - name: "maven-jdk17"
+            image: "myregistry/jenkins-agent-maven:jdk17"
+            labelString: "maven java17 linux"
+            remoteFs: "/home/jenkins/agent"
+            numExecutors: 2
+            maxInstances: 10
+            mode: EXCLUSIVE
+            cpuLimit: "2.0"
+            memoryLimit: "4g"
+            cpuReservation: "0.5"
+            memoryReservation: "1g"
+            mounts:
+              - swarmMount:
+                  type: "bind"
+                  source: "/var/cache/maven"
+                  target: "/root/.m2/repository"
+                  readOnly: false
+              - swarmMount:
+                  type: "volume"
+                  source: "jenkins-workspace"
+                  target: "/workspace"
+            environmentVariables:
+              - swarmEnvVar:
+                  name: "MAVEN_OPTS"
+                  value: "-Xmx2g -XX:+UseG1GC"
+              - swarmEnvVar:
+                  name: "JAVA_HOME"
+                  value: "/opt/java/openjdk"
+            placementConstraints:
+              - "node.role==worker"
+              - "node.labels.type==build"
+            networkAliases:
+              - "maven-agent"
+              - "build-agent"
+
+          - name: "nodejs-agent"
+            image: "myregistry/jenkins-agent-node:20"
+            labelString: "nodejs node npm"
+            remoteFs: "/home/jenkins/agent"
+            numExecutors: 4
+            maxInstances: 15
+            cpuLimit: "1.0"
+            memoryLimit: "2g"
+            environmentVariables:
+              - swarmEnvVar:
+                  name: "NODE_OPTIONS"
+                  value: "--max-old-space-size=1536"
+
+          - name: "docker-builder"
+            image: "myregistry/jenkins-agent-dind:latest"
+            labelString: "docker build dind"
+            remoteFs: "/home/jenkins/agent"
+            numExecutors: 1
+            maxInstances: 5
+            mode: EXCLUSIVE
+            cpuLimit: "4.0"
+            memoryLimit: "8g"
+            mounts:
+              - swarmMount:
+                  type: "bind"
+                  source: "/var/run/docker.sock"
+                  target: "/var/run/docker.sock"
+                  readOnly: false
+            placementConstraints:
+              - "node.labels.dind==enabled"

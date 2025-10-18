@@ -1,0 +1,224 @@
+<?jelly escape='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:l="/lib/layout"
+         xmlns:f="/lib/form" xmlns:t="/lib/hudson">
+    <l:layout title="Swarm Agents Dashboard" norefresh="true">
+        <l:main-panel>
+            <style>
+                .swarm-dashboard { padding: 20px; }
+                .swarm-card { background: var(--card-background); border: 1px solid var(--card-border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+                .swarm-card-header { font-size: 18px; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+                .swarm-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 16px; }
+                .swarm-stat { text-align: center; padding: 12px; background: var(--input-background); border-radius: 4px; }
+                .swarm-stat-value { font-size: 24px; font-weight: 700; }
+                .swarm-stat-label { font-size: 12px; color: var(--text-color-secondary); }
+                .swarm-table { width: 100%; border-collapse: collapse; }
+                .swarm-table th, .swarm-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--card-border-color); }
+                .swarm-table th { font-weight: 600; background: var(--input-background); }
+                .badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+                .badge-success { background: #28a745; color: white; }
+                .badge-warning { background: #ffc107; color: black; }
+                .badge-danger { background: #dc3545; color: white; }
+                .badge-secondary { background: #6c757d; color: white; }
+                .btn-sm { padding: 4px 8px; font-size: 12px; cursor: pointer; border: none; border-radius: 4px; }
+                .btn-refresh { background: var(--btn-primary-bg); color: white; }
+                .btn-danger { background: #dc3545; color: white; }
+                .no-data { text-align: center; padding: 40px; color: var(--text-color-secondary); }
+                .error-message { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 16px; }
+            </style>
+
+            <div class="swarm-dashboard">
+                <h1>Swarm Agents Dashboard</h1>
+
+                <j:choose>
+                    <j:when test="${empty(it.swarmClouds)}">
+                        <div class="no-data">
+                            <p>No Docker Swarm clouds configured.</p>
+                            <p><a href="${rootURL}/manage/cloud/">Configure a Swarm cloud</a></p>
+                        </div>
+                    </j:when>
+                    <j:otherwise>
+                        <j:forEach var="cloud" items="${it.swarmClouds}">
+                            <j:set var="status" value="${it.getClusterStatus(cloud.name)}"/>
+
+                            <div class="swarm-card">
+                                <div class="swarm-card-header">
+                                    <span>
+                                        <j:choose>
+                                            <j:when test="${status.healthy}">
+                                                <span class="badge badge-success">Healthy</span>
+                                            </j:when>
+                                            <j:otherwise>
+                                                <span class="badge badge-danger">Error</span>
+                                            </j:otherwise>
+                                        </j:choose>
+                                        <j:out value="${cloud.name}"/>
+                                    </span>
+                                    <button class="btn-sm btn-refresh js-refresh-cloud"
+                                            data-cloud-name="${h.xmlEscape(cloud.name)}">
+                                        Refresh
+                                    </button>
+                                </div>
+
+                                <j:if test="${!status.healthy}">
+                                    <div class="error-message">
+                                        <j:out value="${status.errorMessage}"/>
+                                    </div>
+                                </j:if>
+
+                                <j:if test="${status.healthy}">
+                                    <div class="swarm-stats">
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${status.readyNodes}/${status.totalNodes}</div>
+                                            <div class="swarm-stat-label">Nodes Ready</div>
+                                        </div>
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${status.currentAgents}/${status.maxAgents}</div>
+                                            <div class="swarm-stat-label">Agents</div>
+                                        </div>
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${status.runningTasks}</div>
+                                            <div class="swarm-stat-label">Running</div>
+                                        </div>
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${status.pendingTasks}</div>
+                                            <div class="swarm-stat-label">Pending</div>
+                                        </div>
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${status.failedTasks}</div>
+                                            <div class="swarm-stat-label">Failed</div>
+                                        </div>
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${status.formattedUsedMemory} / ${status.formattedMemory}</div>
+                                            <div class="swarm-stat-label">Memory (${String.format("%.1f", status.memoryUsagePercent)}% used)</div>
+                                        </div>
+                                        <div class="swarm-stat">
+                                            <div class="swarm-stat-value">${String.format("%.1f", status.usedCpu)} / ${String.format("%.1f", status.totalCpu)}</div>
+                                            <div class="swarm-stat-label">CPU cores (${String.format("%.1f", status.cpuUsagePercent)}% used)</div>
+                                        </div>
+                                    </div>
+
+                                    <h3>Nodes</h3>
+                                    <table class="swarm-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Hostname</th>
+                                                <th>State</th>
+                                                <th>Role</th>
+                                                <th>Memory</th>
+                                                <th>CPU</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <j:forEach var="node" items="${status.nodes}">
+                                                <tr>
+                                                    <td><j:out value="${node.hostname}"/></td>
+                                                    <td>
+                                                        <span class="badge badge-${node.stateClass}"><j:out value="${node.state}"/></span>
+                                                    </td>
+                                                    <td><j:out value="${node.role}"/></td>
+                                                    <td>${node.formattedMemory}</td>
+                                                    <td>${node.cpuCores} cores</td>
+                                                </tr>
+                                            </j:forEach>
+                                        </tbody>
+                                    </table>
+
+                                    <h3>Services</h3>
+                                    <j:choose>
+                                        <j:when test="${empty(status.services)}">
+                                            <p class="no-data">No active services</p>
+                                        </j:when>
+                                        <j:otherwise>
+                                            <table class="swarm-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Template</th>
+                                                        <th>State</th>
+                                                        <th>Uptime</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <j:forEach var="svc" items="${status.services}">
+                                                        <tr>
+                                                            <td><j:out value="${svc.name}"/></td>
+                                                            <td><j:out value="${svc.templateName}"/></td>
+                                                            <td>
+                                                                <span class="badge badge-${svc.stateClass}"><j:out value="${svc.state}"/></span>
+                                                                <j:if test="${svc.error != null}">
+                                                                    <br/><small><j:out value="${svc.error}"/></small>
+                                                                </j:if>
+                                                            </td>
+                                                            <td>${svc.uptime}</td>
+                                                            <td>
+                                                                <button class="btn-sm btn-danger js-remove-service"
+                                                                        data-cloud-name="${h.xmlEscape(cloud.name)}"
+                                                                        data-service-id="${h.xmlEscape(svc.id)}">
+                                                                    Remove
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    </j:forEach>
+                                                </tbody>
+                                            </table>
+                                        </j:otherwise>
+                                    </j:choose>
+                                </j:if>
+                            </div>
+                        </j:forEach>
+                    </j:otherwise>
+                </j:choose>
+            </div>
+
+            <script>
+                (function() {
+                    'use strict';
+
+                    var rootUrl = '${rootURL}';
+
+                    function refreshCloud(cloudName) {
+                        fetch(rootUrl + '/swarm-dashboard/refresh?cloud=' + encodeURIComponent(cloudName), {
+                            method: 'POST',
+                            headers: crumb.wrap({})
+                        }).then(function() {
+                            location.reload();
+                        }).catch(function(err) {
+                            alert('Failed to refresh: ' + err);
+                        });
+                    }
+
+                    function removeService(cloudName, serviceId) {
+                        if (!confirm('Are you sure you want to remove this service?')) return;
+
+                        fetch(rootUrl + '/swarm-dashboard/removeService?cloud=' + encodeURIComponent(cloudName) +
+                              '&amp;serviceId=' + encodeURIComponent(serviceId), {
+                            method: 'POST',
+                            headers: crumb.wrap({})
+                        }).then(function() {
+                            location.reload();
+                        }).catch(function(err) {
+                            alert('Failed to remove service: ' + err);
+                        });
+                    }
+
+                    // Event delegation for refresh buttons
+                    document.addEventListener('click', function(e) {
+                        if (e.target.classList.contains('js-refresh-cloud')) {
+                            var cloudName = e.target.getAttribute('data-cloud-name');
+                            if (cloudName) refreshCloud(cloudName);
+                        }
+                        if (e.target.classList.contains('js-remove-service')) {
+                            var cloudName = e.target.getAttribute('data-cloud-name');
+                            var serviceId = e.target.getAttribute('data-service-id');
+                            if (cloudName &amp;&amp; serviceId) removeService(cloudName, serviceId);
+                        }
+                    });
+
+                    // Auto-refresh every 30 seconds
+                    setTimeout(function() { location.reload(); }, 30000);
+                })();
+            </script>
+        </l:main-panel>
+    </l:layout>
+</j:jelly>

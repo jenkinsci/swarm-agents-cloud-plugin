@@ -1,0 +1,32 @@
+<?jelly escape='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+    <f:entry title="Secret Name" field="secretName">
+        <f:textbox />
+    </f:entry>
+
+    <f:entry title="Target Path" field="targetPath">
+        <f:textbox placeholder="/run/secrets/{secretName}" />
+    </f:entry>
+
+    <f:entry title="File Name" field="fileName">
+        <f:textbox placeholder="Same as secret name" />
+    </f:entry>
+
+    <f:entry title="File Mode" field="fileMode">
+        <f:textbox placeholder="0444" />
+    </f:entry>
+
+    <f:advanced>
+        <f:entry title="UID" field="uid">
+            <f:textbox placeholder="0" />
+        </f:entry>
+
+        <f:entry title="GID" field="gid">
+            <f:textbox placeholder="0" />
+        </f:entry>
+
+        <f:entry title="Credentials ID" field="credentialsId">
+            <f:textbox />
+        </f:entry>
+    </f:advanced>
+</j:jelly>

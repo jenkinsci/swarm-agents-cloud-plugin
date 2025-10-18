@@ -61,6 +61,28 @@
             </f:entry>
         </f:section>
 
+        <f:section title="Health Check">
+            <f:entry title="Health Check Command" field="healthCheckCommand"
+                     description="Command to check container health (e.g., curl -f http://localhost/ || exit 1)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Interval (seconds)" field="healthCheckIntervalSeconds"
+                     description="Time between health checks">
+                <f:number default="30" min="5" max="300"/>
+            </f:entry>
+
+            <f:entry title="Timeout (seconds)" field="healthCheckTimeoutSeconds"
+                     description="Time to wait for health check response">
+                <f:number default="10" min="1" max="60"/>
+            </f:entry>
+
+            <f:entry title="Retries" field="healthCheckRetries"
+                     description="Number of consecutive failures before unhealthy">
+                <f:number default="3" min="1" max="10"/>
+            </f:entry>
+        </f:section>
+
         <f:section title="Mounts">
             <f:entry title="Mounts">
                 <f:repeatableProperty field="mounts" add="Add Mount"/>
@@ -70,6 +92,24 @@
         <f:section title="Environment Variables">
             <f:entry title="Environment Variables">
                 <f:repeatableProperty field="environmentVariables" add="Add Variable"/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Docker Secrets">
+            <f:entry title="Secrets">
+                <f:repeatableProperty field="secrets" add="Add Secret"/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Placement">
+            <f:entry title="Placement Constraints" field="placementConstraintsString"
+                     description="One constraint per line (e.g., node.role==worker)">
+                <f:textarea/>
+            </f:entry>
+
+            <f:entry title="Network Aliases" field="networkAliasesString"
+                     description="Comma-separated network aliases">
+                <f:textbox/>
             </f:entry>
         </f:section>
     </f:advanced>

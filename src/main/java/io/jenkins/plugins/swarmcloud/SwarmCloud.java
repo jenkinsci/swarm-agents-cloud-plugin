@@ -1,24 +1,37 @@
 package io.jenkins.plugins.swarmcloud;
 
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import hudson.Extension;
 import hudson.model.Computer;
 import hudson.model.Descriptor;
+import hudson.model.Item;
 import hudson.model.Label;
 import hudson.model.Node;
+import hudson.security.ACL;
 import hudson.slaves.Cloud;
 import hudson.slaves.NodeProvisioner;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import io.jenkins.plugins.swarmcloud.api.DockerSwarmClient;
+import io.jenkins.plugins.swarmcloud.ratelimit.ProvisionRateLimiter;
 import jenkins.model.Jenkins;
+import org.jenkinsci.plugins.docker.commons.credentials.DockerServerCredentials;
 import org.jenkinsci.Symbol;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.verb.POST;
 
+import javax.net.ssl.SSLHandshakeException;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -26,6 +39,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 /**
  * Docker Swarm Cloud implementation for Jenkins.
@@ -40,6 +54,9 @@ public class SwarmCloud extends Cloud {
     private String jenkinsUrl;
     private String swarmNetwork;
     private int maxConcurrentAgents;
+    private int maxProvisionsPerMinute;
+    private long minProvisionIntervalMs;
+    private boolean rateLimitEnabled;
     private List<SwarmAgentTemplate> templates;
     private transient DockerSwarmClient dockerClient;
 
@@ -47,6 +64,9 @@ public class SwarmCloud extends Cloud {
     public SwarmCloud(@NonNull String name) {
         super(name);
         this.maxConcurrentAgents = 10;
+        this.maxProvisionsPerMinute = ProvisionRateLimiter.DEFAULT_MAX_PROVISIONS_PER_MINUTE;
+        this.minProvisionIntervalMs = ProvisionRateLimiter.DEFAULT_MIN_INTERVAL_MS;
+        this.rateLimitEnabled = true;
         this.templates = new ArrayList<>();
     }
 
@@ -97,6 +117,33 @@ public class SwarmCloud extends Cloud {
     @DataBoundSetter
     public void setMaxConcurrentAgents(int maxConcurrentAgents) {
         this.maxConcurrentAgents = maxConcurrentAgents > 0 ? maxConcurrentAgents : 10;
+    }
+
+    public int getMaxProvisionsPerMinute() {
+        return maxProvisionsPerMinute > 0 ? maxProvisionsPerMinute : ProvisionRateLimiter.DEFAULT_MAX_PROVISIONS_PER_MINUTE;
+    }
+
+    @DataBoundSetter
+    public void setMaxProvisionsPerMinute(int maxProvisionsPerMinute) {
+        this.maxProvisionsPerMinute = maxProvisionsPerMinute > 0 ? maxProvisionsPerMinute : ProvisionRateLimiter.DEFAULT_MAX_PROVISIONS_PER_MINUTE;
+    }
+
+    public long getMinProvisionIntervalMs() {
+        return minProvisionIntervalMs > 0 ? minProvisionIntervalMs : ProvisionRateLimiter.DEFAULT_MIN_INTERVAL_MS;
+    }
+
+    @DataBoundSetter
+    public void setMinProvisionIntervalMs(long minProvisionIntervalMs) {
+        this.minProvisionIntervalMs = minProvisionIntervalMs > 0 ? minProvisionIntervalMs : ProvisionRateLimiter.DEFAULT_MIN_INTERVAL_MS;
+    }
+
+    public boolean isRateLimitEnabled() {
+        return rateLimitEnabled;
+    }
+
+    @DataBoundSetter
+    public void setRateLimitEnabled(boolean rateLimitEnabled) {
+        this.rateLimitEnabled = rateLimitEnabled;
     }
 
     @NonNull
@@ -183,8 +230,26 @@ public class SwarmCloud extends Cloud {
 
     @Override
     public boolean canProvision(@NonNull Cloud.CloudState state) {
+        // Check if Jenkins is shutting down
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null || jenkins.isQuietingDown() || jenkins.isTerminating()) {
+            LOGGER.log(Level.FINE, "Not provisioning: Jenkins is shutting down or in quiet mode");
+            return false;
+        }
+
         Label label = state.getLabel();
-        return canProvision() && getTemplate(label) != null;
+        if (!canProvision()) {
+            return false;
+        }
+        if (getTemplate(label) == null) {
+            return false;
+        }
+        // Check rate limit
+        if (rateLimitEnabled && !ProvisionRateLimiter.canProvision(name, getMaxProvisionsPerMinute(), getMinProvisionIntervalMs())) {
+            LOGGER.log(Level.FINE, "Provision rate limited for cloud: {0}", name);
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -193,8 +258,22 @@ public class SwarmCloud extends Cloud {
         List<NodeProvisioner.PlannedNode> plannedNodes = new ArrayList<>();
         Label label = state.getLabel();
 
+        // Double-check if Jenkins is shutting down (in case canProvision was called earlier)
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null || jenkins.isQuietingDown() || jenkins.isTerminating()) {
+            LOGGER.log(Level.INFO, "Skipping provision: Jenkins is shutting down or in quiet mode");
+            return Collections.emptyList();
+        }
+
         LOGGER.log(Level.INFO, "Provision requested for label: {0}, excessWorkload: {1}",
                 new Object[]{label, excessWorkload});
+
+        // Check rate limit
+        if (rateLimitEnabled && !ProvisionRateLimiter.canProvision(name, getMaxProvisionsPerMinute(), getMinProvisionIntervalMs())) {
+            long waitTime = ProvisionRateLimiter.getWaitTime(name, getMaxProvisionsPerMinute(), getMinProvisionIntervalMs());
+            LOGGER.log(Level.INFO, "Provision rate limited for cloud: {0}, wait time: {1}ms", new Object[]{name, waitTime});
+            return Collections.emptyList();
+        }
 
         SwarmAgentTemplate template = getTemplate(label);
         if (template == null) {
@@ -206,6 +285,12 @@ public class SwarmCloud extends Cloud {
         int toProvision = Math.min(excessWorkload, availableCapacity);
         toProvision = Math.min(toProvision, template.getAvailableCapacity());
 
+        // Apply rate limit to number of provisions
+        if (rateLimitEnabled) {
+            int maxAllowed = getMaxProvisionsPerMinute() - ProvisionRateLimiter.getInfo(name).getProvisionCount();
+            toProvision = Math.min(toProvision, Math.max(1, maxAllowed));
+        }
+
         LOGGER.log(Level.INFO, "Will provision {0} agents using template: {1}",
                 new Object[]{toProvision, template.getName()});
 
@@ -216,6 +301,10 @@ public class SwarmCloud extends Cloud {
                     Computer.threadPoolForRemoting.submit(new ProvisioningCallback(this, template, agentName)),
                     template.getNumExecutors()
             ));
+            // Record provision for rate limiting
+            if (rateLimitEnabled) {
+                ProvisionRateLimiter.recordProvision(name);
+            }
         }
 
         return plannedNodes;
@@ -259,9 +348,18 @@ public class SwarmCloud extends Cloud {
                         serviceId
                 );
 
+                // Reset failure count on success
+                if (cloud.isRateLimitEnabled()) {
+                    ProvisionRateLimiter.resetFailures(cloud.name);
+                }
+
                 return agent;
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Failed to provision agent: " + agentName, e);
+                // Record failure for rate limiting
+                if (cloud.isRateLimitEnabled()) {
+                    ProvisionRateLimiter.recordFailure(cloud.name);
+                }
                 throw e;
             }
         }
@@ -277,6 +375,9 @@ public class SwarmCloud extends Cloud {
             return "Docker Swarm Agents Cloud";
         }
 
+        private static final Pattern DOCKER_HOST_PATTERN = Pattern.compile(
+                "^(tcp|unix|npipe)://[^\\s]+$", Pattern.CASE_INSENSITIVE);
+
         @POST
         public FormValidation doTestConnection(
                 @QueryParameter("dockerHost") String dockerHost,
@@ -288,26 +389,158 @@ public class SwarmCloud extends Cloud {
                 return FormValidation.error("Docker host is required");
             }
 
+            // Validate URL format
+            String trimmedHost = dockerHost.trim();
+            if (!DOCKER_HOST_PATTERN.matcher(trimmedHost).matches()) {
+                if (trimmedHost.startsWith("https://") || trimmedHost.startsWith("http://")) {
+                    return FormValidation.error(
+                            "Invalid protocol. Use 'tcp://' instead of '%s'. Example: tcp://docker-host:2376",
+                            trimmedHost.substring(0, trimmedHost.indexOf("://")));
+                }
+                return FormValidation.error(
+                        "Invalid Docker host format. Expected: tcp://host:port, unix:///var/run/docker.sock, or npipe:////./pipe/docker_engine");
+            }
+
             try {
-                DockerSwarmClient client = new DockerSwarmClient(dockerHost, credentialsId);
+                DockerSwarmClient client = new DockerSwarmClient(trimmedHost, credentialsId);
                 String version = client.getSwarmVersion();
                 int nodes = client.getNodeCount();
                 return FormValidation.ok("Connected to Docker Swarm. Version: %s, Nodes: %d", version, nodes);
             } catch (Exception e) {
-                return FormValidation.error("Failed to connect: " + e.getMessage());
+                return handleConnectionError(e, trimmedHost, credentialsId);
             }
         }
 
-        public ListBoxModel doFillCredentialsIdItems() {
-            Jenkins jenkins = Jenkins.getInstanceOrNull();
-            if (jenkins == null || !jenkins.hasPermission(Jenkins.ADMINISTER)) {
-                return new ListBoxModel();
+        private FormValidation handleConnectionError(Exception e, String dockerHost, String credentialsId) {
+            Throwable cause = e;
+            while (cause.getCause() != null && cause.getCause() != cause) {
+                cause = cause.getCause();
             }
 
-            ListBoxModel items = new ListBoxModel();
-            items.add("- none -", "");
-            // TODO: Add credentials lookup
-            return items;
+            if (cause instanceof SSLHandshakeException) {
+                if (credentialsId == null || credentialsId.isBlank()) {
+                    return FormValidation.error(
+                            "TLS/SSL handshake failed. The Docker host requires TLS authentication. " +
+                            "Please select Docker Server Credentials with client certificate.");
+                }
+                return FormValidation.error(
+                        "TLS/SSL certificate error: %s. Check that credentials contain valid certificates " +
+                        "matching the Docker host CA.", cause.getMessage());
+            }
+
+            if (cause instanceof ConnectException) {
+                return FormValidation.error(
+                        "Connection refused. Please verify: (1) Docker daemon is running, " +
+                        "(2) Host and port are correct, (3) Docker API is exposed (not just Docker socket).");
+            }
+
+            if (cause instanceof UnknownHostException) {
+                return FormValidation.error(
+                        "Unknown host: '%s'. Please check the hostname or IP address.", cause.getMessage());
+            }
+
+            if (cause instanceof SocketTimeoutException) {
+                return FormValidation.error(
+                        "Connection timed out. The Docker host may be unreachable or behind a firewall.");
+            }
+
+            // Check for Swarm-specific errors
+            String message = e.getMessage();
+            if (message != null) {
+                if (message.contains("This node is not a swarm manager")) {
+                    return FormValidation.error(
+                            "Docker is running but Swarm mode is not enabled. " +
+                            "Initialize Swarm with: docker swarm init");
+                }
+                if (message.contains("Unsupported protocol scheme")) {
+                    return FormValidation.error(
+                            "Invalid protocol scheme. Use 'tcp://' for remote connections. " +
+                            "Example: tcp://docker-host:2376");
+                }
+            }
+
+            // Generic error with sanitized message
+            String sanitizedMessage = message != null ? message.replaceAll("[<>&'\"]", "") : "Unknown error";
+            return FormValidation.error("Connection failed: %s", sanitizedMessage);
+        }
+
+        /**
+         * Fills the credentials dropdown with available Docker server credentials.
+         *
+         * @param dockerHost The Docker host URL for domain requirements
+         * @return ListBoxModel with available credentials
+         */
+        public ListBoxModel doFillCredentialsIdItems(
+                @AncestorInPath Item item,
+                @QueryParameter String dockerHost) {
+
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue("");
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue("");
+                }
+            }
+
+            result.includeEmptyValue();
+            result.includeMatchingAs(
+                    item instanceof hudson.model.Queue.Task
+                            ? ((hudson.model.Queue.Task) item).getDefaultAuthentication()
+                            : ACL.SYSTEM,
+                    item,
+                    DockerServerCredentials.class,
+                    dockerHost != null && !dockerHost.isBlank()
+                            ? URIRequirementBuilder.fromUri(dockerHost).build()
+                            : URIRequirementBuilder.create().build(),
+                    CredentialsMatchers.always()
+            );
+
+            return result;
+        }
+
+        /**
+         * Validates the selected credentials.
+         */
+        public FormValidation doCheckCredentialsId(
+                @AncestorInPath Item item,
+                @QueryParameter String value,
+                @QueryParameter String dockerHost) {
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return FormValidation.ok();
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return FormValidation.ok();
+                }
+            }
+
+            if (value == null || value.isBlank()) {
+                return FormValidation.ok(); // Credentials are optional
+            }
+
+            if (CredentialsProvider.listCredentials(
+                    DockerServerCredentials.class,
+                    item,
+                    item instanceof hudson.model.Queue.Task
+                            ? ((hudson.model.Queue.Task) item).getDefaultAuthentication()
+                            : ACL.SYSTEM,
+                    dockerHost != null && !dockerHost.isBlank()
+                            ? URIRequirementBuilder.fromUri(dockerHost).build()
+                            : URIRequirementBuilder.create().build(),
+                    CredentialsMatchers.withId(value)
+            ).isEmpty()) {
+                return FormValidation.error("Cannot find currently selected credentials");
+            }
+
+            return FormValidation.ok();
         }
     }
 }

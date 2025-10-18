@@ -1,0 +1,44 @@
+jenkins:
+  clouds:
+    - swarmAgentsCloud:
+        name: "dev-swarm"
+        dockerHost: "tcp://swarm-dev:2376"
+        jenkinsUrl: "http://jenkins-dev:8080"
+        swarmNetwork: "jenkins-dev"
+        maxConcurrentAgents: 10
+        templates:
+          - name: "dev-agent"
+            image: "jenkins/inbound-agent:latest"
+            labelString: "dev development"
+            numExecutors: 1
+            maxInstances: 5
+
+    - swarmAgentsCloud:
+        name: "staging-swarm"
+        dockerHost: "tcp://swarm-staging:2376"
+        jenkinsUrl: "http://jenkins-staging:8080"
+        swarmNetwork: "jenkins-staging"
+        maxConcurrentAgents: 20
+        templates:
+          - name: "staging-agent"
+            image: "jenkins/inbound-agent:latest"
+            labelString: "staging test"
+            numExecutors: 2
+            maxInstances: 10
+
+    - swarmAgentsCloud:
+        name: "prod-swarm"
+        dockerHost: "tcp://swarm-prod:2376"
+        credentialsId: "prod-docker-creds"
+        jenkinsUrl: "https://jenkins-prod.company.com"
+        swarmNetwork: "jenkins-prod"
+        maxConcurrentAgents: 100
+        templates:
+          - name: "prod-builder"
+            image: "myregistry/jenkins-agent:latest"
+            labelString: "production build"
+            numExecutors: 2
+            maxInstances: 50
+            cpuLimit: "2.0"
+            memoryLimit: "4g"
+            mode: EXCLUSIVE

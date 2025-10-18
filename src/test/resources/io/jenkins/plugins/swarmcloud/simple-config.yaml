@@ -1,0 +1,15 @@
+jenkins:
+  clouds:
+    - swarmAgentsCloud:
+        name: "docker-swarm"
+        dockerHost: "tcp://swarm-manager:2376"
+        jenkinsUrl: "http://jenkins:8080"
+        swarmNetwork: "jenkins-network"
+        maxConcurrentAgents: 10
+        templates:
+          - name: "default"
+            image: "jenkins/inbound-agent:latest"
+            labelString: "docker swarm"
+            remoteFs: "/home/jenkins/agent"
+            numExecutors: 1
+            maxInstances: 5

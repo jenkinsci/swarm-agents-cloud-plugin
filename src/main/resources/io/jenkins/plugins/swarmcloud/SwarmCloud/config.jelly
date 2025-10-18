@@ -34,6 +34,25 @@
                       method="testConnection"
                       with="dockerHost,credentialsId"/>
 
+    <f:advanced>
+        <f:section title="Rate Limiting">
+            <f:entry title="Enable Rate Limiting" field="rateLimitEnabled"
+                     description="Enable rate limiting for agent provisioning">
+                <f:checkbox default="true"/>
+            </f:entry>
+
+            <f:entry title="Max Provisions Per Minute" field="maxProvisionsPerMinute"
+                     description="Maximum number of agents to provision per minute">
+                <f:number default="10" min="1" max="60"/>
+            </f:entry>
+
+            <f:entry title="Min Provision Interval (ms)" field="minProvisionIntervalMs"
+                     description="Minimum time between provisions in milliseconds">
+                <f:number default="1000" min="100" max="60000"/>
+            </f:entry>
+        </f:section>
+    </f:advanced>
+
     <f:entry title="Agent Templates">
         <f:repeatableProperty field="templates" add="Add Template"/>
     </f:entry>

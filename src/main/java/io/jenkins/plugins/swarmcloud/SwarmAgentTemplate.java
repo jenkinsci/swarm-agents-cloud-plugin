@@ -16,10 +16,13 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
@@ -58,6 +61,15 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
 
     // Network aliases
     private List<String> networkAliases;
+
+    // Docker Swarm Secrets
+    private List<SwarmSecretConfig> secrets;
+
+    // Health check configuration
+    private String healthCheckCommand;
+    private int healthCheckIntervalSeconds;
+    private int healthCheckTimeoutSeconds;
+    private int healthCheckRetries;
 
     // Parent cloud reference
     private transient SwarmCloud parent;
@@ -218,6 +230,32 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.placementConstraints = placementConstraints;
     }
 
+    /**
+     * Sets placement constraints from a newline-separated string (for Jelly UI).
+     */
+    @DataBoundSetter
+    public void setPlacementConstraintsString(String constraints) {
+        if (constraints == null || constraints.isBlank()) {
+            this.placementConstraints = null;
+            return;
+        }
+        this.placementConstraints = Arrays.stream(constraints.split("\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets placement constraints as a newline-separated string (for Jelly UI).
+     */
+    @Nullable
+    public String getPlacementConstraintsString() {
+        if (placementConstraints == null || placementConstraints.isEmpty()) {
+            return null;
+        }
+        return String.join("\n", placementConstraints);
+    }
+
     @NonNull
     public List<String> getNetworkAliases() {
         return networkAliases != null ? Collections.unmodifiableList(networkAliases) : Collections.emptyList();
@@ -226,6 +264,86 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundSetter
     public void setNetworkAliases(List<String> networkAliases) {
         this.networkAliases = networkAliases;
+    }
+
+    /**
+     * Sets network aliases from a comma-separated string (for Jelly UI).
+     */
+    @DataBoundSetter
+    public void setNetworkAliasesString(String aliases) {
+        if (aliases == null || aliases.isBlank()) {
+            this.networkAliases = null;
+            return;
+        }
+        this.networkAliases = Arrays.stream(aliases.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets network aliases as a comma-separated string (for Jelly UI).
+     */
+    @Nullable
+    public String getNetworkAliasesString() {
+        if (networkAliases == null || networkAliases.isEmpty()) {
+            return null;
+        }
+        return String.join(", ", networkAliases);
+    }
+
+    @NonNull
+    public List<SwarmSecretConfig> getSecrets() {
+        return secrets != null ? Collections.unmodifiableList(secrets) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setSecrets(List<SwarmSecretConfig> secrets) {
+        this.secrets = secrets;
+    }
+
+    @Nullable
+    public String getHealthCheckCommand() {
+        return healthCheckCommand;
+    }
+
+    @DataBoundSetter
+    public void setHealthCheckCommand(String healthCheckCommand) {
+        this.healthCheckCommand = Util.fixEmptyAndTrim(healthCheckCommand);
+    }
+
+    public int getHealthCheckIntervalSeconds() {
+        return healthCheckIntervalSeconds > 0 ? healthCheckIntervalSeconds : 30;
+    }
+
+    @DataBoundSetter
+    public void setHealthCheckIntervalSeconds(int healthCheckIntervalSeconds) {
+        this.healthCheckIntervalSeconds = healthCheckIntervalSeconds;
+    }
+
+    public int getHealthCheckTimeoutSeconds() {
+        return healthCheckTimeoutSeconds > 0 ? healthCheckTimeoutSeconds : 10;
+    }
+
+    @DataBoundSetter
+    public void setHealthCheckTimeoutSeconds(int healthCheckTimeoutSeconds) {
+        this.healthCheckTimeoutSeconds = healthCheckTimeoutSeconds;
+    }
+
+    public int getHealthCheckRetries() {
+        return healthCheckRetries > 0 ? healthCheckRetries : 3;
+    }
+
+    @DataBoundSetter
+    public void setHealthCheckRetries(int healthCheckRetries) {
+        this.healthCheckRetries = healthCheckRetries;
+    }
+
+    /**
+     * Checks if health check is configured.
+     */
+    public boolean hasHealthCheck() {
+        return healthCheckCommand != null && !healthCheckCommand.isBlank();
     }
 
     public void setParent(SwarmCloud parent) {
