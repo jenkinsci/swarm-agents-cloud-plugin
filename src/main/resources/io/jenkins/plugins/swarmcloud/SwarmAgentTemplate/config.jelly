@@ -112,6 +112,53 @@
                 <f:textbox/>
             </f:entry>
         </f:section>
+
+        <f:section title="Advanced Container Options">
+            <f:entry title="Privileged Mode" field="privileged"
+                     description="Run container in privileged mode (use with caution)">
+                <f:checkbox/>
+            </f:entry>
+
+            <f:entry title="User" field="user"
+                     description="User to run container as (e.g., 1000:1000 or jenkins)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Hostname" field="hostname"
+                     description="Container hostname">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Add Capabilities" field="capAddString"
+                     description="Linux capabilities to add (comma-separated, e.g., CAP_NET_ADMIN, CAP_SYS_PTRACE)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Drop Capabilities" field="capDropString"
+                     description="Linux capabilities to drop (comma-separated)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Sysctls" field="sysctlsString"
+                     description="Kernel parameters, one per line (e.g., net.core.somaxconn=1024)">
+                <f:textarea/>
+            </f:entry>
+
+            <f:entry title="DNS Servers" field="dnsServersString"
+                     description="Custom DNS servers (comma-separated IP addresses)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Stop Signal" field="stopSignal"
+                     description="Signal to stop container (e.g., SIGTERM, SIGKILL)">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Stop Grace Period (seconds)" field="stopGracePeriod"
+                     description="Grace period before force killing container">
+                <f:number default="10" min="0" max="300"/>
+            </f:entry>
+        </f:section>
     </f:advanced>
 
 </j:jelly>

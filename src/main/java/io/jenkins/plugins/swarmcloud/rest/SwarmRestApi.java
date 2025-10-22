@@ -19,6 +19,7 @@ import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.verb.DELETE;
 import org.kohsuke.stapler.verb.GET;
 import org.kohsuke.stapler.verb.POST;
+import org.kohsuke.stapler.verb.PUT;
 
 import javax.servlet.ServletException;
 import java.io.IOException;
@@ -276,6 +277,158 @@ public class SwarmRestApi implements RootAction {
         } catch (Exception e) {
             writeJsonError(rsp, 500, "Failed to provision: " + e.getMessage());
         }
+    }
+
+    /**
+     * PUT /swarm-api/template - Update a template's configuration
+     *
+     * Request body (JSON):
+     * {
+     *   "cloud": "cloud-name",
+     *   "template": "template-name",
+     *   "image": "new-image:tag",         // optional
+     *   "labelString": "new-labels",       // optional
+     *   "maxInstances": 10,                // optional
+     *   "cpuLimit": "2.0",                 // optional
+     *   "memoryLimit": "4g"                // optional
+     * }
+     */
+    @PUT
+    public void doTemplate(StaplerRequest req, StaplerResponse rsp) throws IOException {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+
+        // Parse JSON body
+        JSONObject body;
+        try {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            var reader = req.getReader();
+            while ((line = reader.readLine()) != null) {
+                sb.append(line);
+            }
+            body = JSONObject.fromObject(sb.toString());
+        } catch (Exception e) {
+            writeJsonError(rsp, 400, "Invalid JSON body: " + e.getMessage());
+            return;
+        }
+
+        String cloudName = body.optString("cloud", null);
+        String templateName = body.optString("template", null);
+
+        if (cloudName == null || cloudName.isBlank() || templateName == null || templateName.isBlank()) {
+            writeJsonError(rsp, 400, "Cloud name and template name are required");
+            return;
+        }
+
+        SwarmCloud cloud = findCloud(cloudName);
+        if (cloud == null) {
+            writeJsonError(rsp, 404, "Cloud not found: " + cloudName);
+            return;
+        }
+
+        SwarmAgentTemplate template = null;
+        for (SwarmAgentTemplate t : cloud.getTemplates()) {
+            if (t.getName().equals(templateName)) {
+                template = t;
+                break;
+            }
+        }
+
+        if (template == null) {
+            writeJsonError(rsp, 404, "Template not found: " + templateName);
+            return;
+        }
+
+        // Update fields if provided
+        boolean updated = false;
+
+        if (body.has("image")) {
+            String newImage = body.getString("image");
+            if (newImage != null && !newImage.isBlank()) {
+                template.setImage(newImage);
+                updated = true;
+            }
+        }
+
+        if (body.has("labelString")) {
+            template.setLabelString(body.getString("labelString"));
+            updated = true;
+        }
+
+        if (body.has("maxInstances")) {
+            template.setMaxInstances(body.getInt("maxInstances"));
+            updated = true;
+        }
+
+        if (body.has("cpuLimit")) {
+            template.setCpuLimit(body.getString("cpuLimit"));
+            updated = true;
+        }
+
+        if (body.has("memoryLimit")) {
+            template.setMemoryLimit(body.getString("memoryLimit"));
+            updated = true;
+        }
+
+        if (body.has("numExecutors")) {
+            template.setNumExecutors(body.getInt("numExecutors"));
+            updated = true;
+        }
+
+        if (body.has("remoteFs")) {
+            template.setRemoteFs(body.getString("remoteFs"));
+            updated = true;
+        }
+
+        if (!updated) {
+            writeJsonError(rsp, 400, "No fields to update provided");
+            return;
+        }
+
+        // Save configuration
+        try {
+            Jenkins.get().save();
+        } catch (Exception e) {
+            writeJsonError(rsp, 500, "Failed to save configuration: " + e.getMessage());
+            return;
+        }
+
+        JSONObject result = new JSONObject();
+        result.put("status", "updated");
+        result.put("template", templateToJson(template));
+        writeJsonResponse(rsp, 200, result.toString());
+    }
+
+    /**
+     * GET /swarm-api/template - Get single template details
+     */
+    @GET
+    public void doTemplateGet(StaplerRequest req, StaplerResponse rsp,
+                              @QueryParameter String cloud,
+                              @QueryParameter String name) throws IOException {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+
+        if (cloud == null || cloud.isBlank() || name == null || name.isBlank()) {
+            writeJsonError(rsp, 400, "Cloud name and template name are required");
+            return;
+        }
+
+        SwarmCloud swarmCloud = findCloud(cloud);
+        if (swarmCloud == null) {
+            writeJsonError(rsp, 404, "Cloud not found: " + cloud);
+            return;
+        }
+
+        for (SwarmAgentTemplate template : swarmCloud.getTemplates()) {
+            if (template.getName().equals(name)) {
+                JSONObject result = templateToJson(template);
+                result.put("cloudName", cloud);
+                writeJsonResponse(rsp, 200, result.toString());
+                return;
+            }
+        }
+
+        writeJsonError(rsp, 404, "Template not found: " + name);
     }
 
     // Helper methods

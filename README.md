@@ -1,55 +1,47 @@
-# Swarm Agents Cloud Plugin
+# Swarm Agents Cloud Plugin for Jenkins
 
-Jenkins plugin for provisioning agents on Docker Swarm clusters.
+[![Jenkins Plugin](https://img.shields.io/badge/jenkins-plugin-blue.svg)](https://plugins.jenkins.io/)
+[![Java 17+](https://img.shields.io/badge/java-17%2B-blue.svg)](https://adoptium.net/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Provision Jenkins agents dynamically on Docker Swarm clusters.
 
 ## Features
 
-- **WebSocket Connections**: Modern agent connectivity through WebSocket (with JNLP fallback)
-- **Real Monitoring**: Accurate CPU/RAM metrics from Docker Stats API
-- **Configuration as Code**: Full JCasC support for declarative configuration
-- **Resource Management**: CPU and memory limits/reservations per template
-- **Volume Mounts**: Support for bind mounts, volumes, and tmpfs
-- **Placement Constraints**: Control agent placement within the cluster
-- **Instance Limits**: Per-template and global agent limits
-- **REST API**: Programmatic access to templates and services
+- **Dynamic Agent Provisioning**: Automatically creates Docker Swarm services when build demand increases
+- **WebSocket Support**: Modern agent connection via WebSocket (no inbound TCP ports required)
+- **TLS/SSL Authentication**: Full support for Docker TLS certificates
+- **Configuration as Code**: Full JCasC compatibility
+- **Resource Management**: CPU/memory limits and reservations per template
+- **Health Checks**: Configurable container health monitoring
+- **Secrets Support**: Docker Swarm secrets integration
+- **Rate Limiting**: Built-in provisioning rate limits to prevent thundering herd
+- **Dashboard**: Real-time cluster monitoring at `/swarm-dashboard`
+- **REST API**: Programmatic management at `/swarm-api`
 
 ## Requirements
 
-- Jenkins 2.479+
-- Java 17+
-- Docker Swarm cluster
+- Jenkins 2.479.3 or newer
+- Java 17 or newer
+- Docker Swarm cluster (initialized with `docker swarm init`)
 
 ## Installation
 
-1. Build the plugin:
-   ```bash
-   mvn clean package
-   ```
-
-2. Install the HPI file:
-   - Go to Jenkins → Manage Jenkins → Plugins → Advanced
-   - Upload `target/swarm-agents-cloud.hpi`
-   - Restart Jenkins
+1. Download the `.hpi` file from releases (or build from source)
+2. Go to **Manage Jenkins** > **Plugins** > **Advanced settings**
+3. Upload the `.hpi` file under **Deploy Plugin**
+4. Restart Jenkins
 
 ## Configuration
 
 ### Via UI
 
-1. Go to Jenkins → Manage Jenkins → Clouds
-2. Click "Add a new cloud" → "Docker Swarm Agents Cloud"
+1. Go to **Manage Jenkins** > **Clouds**
+2. Click **New cloud** > **Docker Swarm Agents Cloud**
 3. Configure:
-   - **Name**: Unique cloud name
-   - **Docker Host**: Swarm manager URL (e.g., `tcp://swarm-manager:2376`)
-   - **Jenkins URL**: URL for agents to connect back
-   - **Swarm Network**: Docker network for agents
-   - **Max Concurrent Agents**: Global limit
-
-4. Add agent templates with:
-   - Docker image
-   - Labels
-   - Resource constraints
-   - Volume mounts
-   - Environment variables
+   - **Docker Host**: `tcp://your-swarm-manager:2376`
+   - **Credentials**: Docker Server Credentials (for TLS)
+   - **Max Concurrent Agents**: Limit total agents from this cloud
 
 ### Via Configuration as Code (JCasC)
 
@@ -59,30 +51,170 @@ jenkins:
     - swarmAgentsCloud:
         name: "docker-swarm"
         dockerHost: "tcp://swarm-manager:2376"
-        credentialsId: "docker-certs"
-        jenkinsUrl: "http://jenkins:8080"
-        swarmNetwork: "jenkins-network"
+        credentialsId: "docker-tls-creds"
         maxConcurrentAgents: 10
+        jenkinsUrl: "http://jenkins:8080/"
+        swarmNetwork: "jenkins-agents"
         templates:
-          - name: "maven-agent"
+          - name: "maven"
             image: "jenkins/inbound-agent:latest"
-            labelString: "maven java"
+            labelString: "maven docker"
             remoteFs: "/home/jenkins/agent"
             numExecutors: 2
             maxInstances: 5
             cpuLimit: "2.0"
             memoryLimit: "4g"
             mounts:
-              - type: "volume"
-                source: "maven-cache"
-                target: "/root/.m2"
+              - type: "bind"
+                source: "/var/run/docker.sock"
+                target: "/var/run/docker.sock"
             environmentVariables:
-              - name: "JAVA_OPTS"
-                value: "-Xmx512m"
-          - name: "node-agent"
-            image: "jenkins/inbound-agent:latest"
-            labelString: "node npm"
-            maxInstances: 3
+              - key: "MAVEN_OPTS"
+                value: "-Xmx1g"
+```
+
+## Agent Templates
+
+Each template defines how agent containers are created:
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `name` | Template identifier | Required |
+| `image` | Docker image | `jenkins/inbound-agent:latest` |
+| `labelString` | Jenkins labels (space-separated) | - |
+| `remoteFs` | Agent working directory | `/home/jenkins/agent` |
+| `numExecutors` | Executors per agent | 1 |
+| `maxInstances` | Max containers from template | 5 |
+| `cpuLimit` | CPU limit (e.g., "2.0") | - |
+| `memoryLimit` | Memory limit (e.g., "4g") | - |
+
+### Advanced Container Options
+
+| Field | Description |
+|-------|-------------|
+| `privileged` | Run container with elevated privileges |
+| `user` | Run as specific user (e.g., "1000:1000") |
+| `hostname` | Container hostname |
+| `capAddString` | Linux capabilities to add (CAP_NET_ADMIN, etc.) |
+| `capDropString` | Linux capabilities to drop |
+| `sysctlsString` | Kernel parameters (one per line) |
+| `dnsServersString` | Custom DNS servers (comma-separated) |
+| `stopSignal` | Signal to stop container (SIGTERM, SIGKILL) |
+| `stopGracePeriod` | Grace period in seconds before force kill |
+
+## REST API
+
+Base URL: `http://jenkins/swarm-api/`
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/clouds` | List all Swarm clouds |
+| GET | `/cloud?name=X` | Get cloud details |
+| GET | `/templates?cloud=X` | List templates |
+| GET | `/template?cloud=X&name=Y` | Get single template |
+| GET | `/agents?cloud=X` | List running agents |
+| GET | `/metrics?cloud=X` | Get cluster metrics |
+| POST | `/provision?cloud=X&template=Y` | Provision new agent |
+| PUT | `/template` | Update template configuration |
+
+### Update Template Example
+
+```bash
+curl -X PUT "http://jenkins/swarm-api/template" \
+  -H "Content-Type: application/json" \
+  -u admin:token \
+  -d '{
+    "cloud": "docker-swarm",
+    "template": "maven",
+    "image": "jenkins/inbound-agent:alpine-jdk21"
+  }'
+```
+
+### Supported Update Fields
+
+- `image` - Docker image
+- `labelString` - Labels
+- `maxInstances` - Max instances
+- `numExecutors` - Number of executors
+- `cpuLimit` - CPU limit
+- `memoryLimit` - Memory limit
+- `remoteFs` - Remote filesystem path
+
+## Dashboard
+
+Access the real-time dashboard at `http://jenkins/swarm-dashboard/`
+
+Features:
+- Cluster health status
+- Node information (hostname, state, resources)
+- Running services and their states
+- Resource utilization (CPU, Memory)
+- Quick actions (refresh, remove service)
+
+## Docker Host URL Format
+
+Use the correct protocol for your Docker connection:
+
+| Connection Type | URL Format | Example |
+|----------------|------------|---------|
+| TCP (remote) | `tcp://host:port` | `tcp://swarm-manager:2376` |
+| Unix socket | `unix:///path/to/socket` | `unix:///var/run/docker.sock` |
+| Named pipe (Windows) | `npipe:////./pipe/name` | `npipe:////./pipe/docker_engine` |
+
+**Important**: Use `tcp://` not `https://` even for TLS connections!
+
+## TLS Configuration
+
+For secure Docker connections:
+
+1. Create Docker Server Credentials in Jenkins:
+   - Go to **Manage Jenkins** > **Credentials**
+   - Add **Docker Server Credentials**
+   - Paste CA certificate, client certificate, and client key
+
+2. Generate certificates (if needed):
+```bash
+# On Docker Swarm manager
+openssl genrsa -out ca-key.pem 4096
+openssl req -new -x509 -days 365 -key ca-key.pem -out ca.pem -subj "/CN=Docker CA"
+openssl genrsa -out client-key.pem 4096
+openssl req -new -key client-key.pem -out client.csr -subj "/CN=client"
+openssl x509 -req -days 365 -in client.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out client-cert.pem
+```
+
+3. Configure Docker daemon (`/etc/docker/daemon.json`):
+```json
+{
+  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2376"],
+  "tls": true,
+  "tlscacert": "/etc/docker/ca.pem",
+  "tlscert": "/etc/docker/server-cert.pem",
+  "tlskey": "/etc/docker/server-key.pem",
+  "tlsverify": true
+}
+```
+
+## Docker Swarm Setup
+
+### Create a Swarm cluster
+
+```bash
+# Initialize swarm on manager
+docker swarm init
+
+# Get join token for workers
+docker swarm join-token worker
+
+# Join workers to swarm
+docker swarm join --token <token> <manager-ip>:2377
+```
+
+### Create overlay network
+
+```bash
+docker network create --driver overlay --attachable jenkins-agents
 ```
 
 ## Usage in Pipeline
@@ -102,63 +234,57 @@ pipeline {
 }
 ```
 
-## Docker Swarm Setup
+## Troubleshooting
 
-### Create a Swarm cluster
+### Common Errors
 
-```bash
-# Initialize swarm on manager
-docker swarm init
+| Error | Solution |
+|-------|----------|
+| "Unsupported protocol scheme: https" | Use `tcp://` instead of `https://` |
+| "Connection refused" | Check Docker daemon is running and API is exposed |
+| "TLS handshake failed" | Configure Docker Server Credentials |
+| "This node is not a swarm manager" | Run `docker swarm init` on the host |
+| "Unknown host" | Check hostname/IP address |
+| "Connection timed out" | Check firewall rules, ensure port 2376 is open |
 
-# Join workers
-docker swarm join --token <token> <manager-ip>:2377
-```
+### Enable Debug Logging
 
-### Create overlay network
+In Jenkins, go to **Manage Jenkins** > **System Log** > **Add new log recorder**:
+- Logger: `io.jenkins.plugins.swarmcloud`
+- Level: `FINE`
 
-```bash
-docker network create --driver overlay --attachable jenkins-network
-```
+## Comparison with docker-swarm-plugin
 
-### Configure Docker for remote access
+This plugin addresses known issues in the [official docker-swarm-plugin](https://plugins.jenkins.io/docker-swarm/):
 
-On the Swarm manager, enable TCP access:
+| Issue | docker-swarm-plugin | swarm-agents-cloud |
+|-------|--------------------|--------------------|
+| XSS vulnerabilities (SECURITY-2811) | Affected | Fixed |
+| TLS support | Broken | Working |
+| Error messages | Generic | Detailed |
+| Quiet-down handling (#113) | Jobs hang | Graceful stop |
+| Resource monitoring (#129) | Always 100% free | Real usage |
+| REST API updates (#123) | Read-only | Full CRUD |
+| Mount parameter (#121) | Missing | Supported |
+| Container limits (#116) | N/A | maxInstances |
+| Extra parameters (#120) | Limited | capabilities, sysctls, dns |
+| Maintenance | Abandoned (5+ years) | Active |
 
-```bash
-# /etc/docker/daemon.json
-{
-  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2376"],
-  "tls": true,
-  "tlscacert": "/etc/docker/ca.pem",
-  "tlscert": "/etc/docker/server-cert.pem",
-  "tlskey": "/etc/docker/server-key.pem",
-  "tlsverify": true
-}
-```
-
-## Development
-
-### Build
-
-```bash
-mvn clean package
-```
-
-### Run tests
+## Building from Source
 
 ```bash
-mvn test
-```
+# Clone repository
+git clone https://github.com/jenkinsci/swarm-agents-cloud-plugin.git
+cd swarm-agents-cloud-plugin
 
-### Run with Jenkins
+# Build (skip tests for faster build)
+mvn clean package -Dmaven.test.skip=true
 
-```bash
+# Plugin will be at target/swarm-agents-cloud.hpi
+
+# Run with local Jenkins
 mvn hpi:run
 ```
-
-## License
-
-MIT License
 
 ## Contributing
 
@@ -167,3 +293,14 @@ MIT License
 3. Make your changes
 4. Run tests: `mvn test`
 5. Submit a pull request
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Links
+
+- [Jenkins Plugin Site](https://plugins.jenkins.io/)
+- [Issue Tracker](https://github.com/jenkinsci/swarm-agents-cloud-plugin/issues)
+- [Docker Swarm Documentation](https://docs.docker.com/engine/swarm/)
+- [Jenkins Inbound Agent Image](https://hub.docker.com/r/jenkins/inbound-agent)

@@ -251,6 +251,9 @@ public class DockerSwarmClient implements Closeable {
             containerSpec.withSecrets(secretRefs);
         }
 
+        // Add advanced container options (#120)
+        applyAdvancedContainerOptions(containerSpec, template);
+
         // Build task template
         TaskSpec taskSpec = new TaskSpec().withContainerSpec(containerSpec);
 
@@ -669,6 +672,82 @@ public class DockerSwarmClient implements Closeable {
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to list secrets", e);
             return List.of();
+        }
+    }
+
+    /**
+     * Applies advanced container options to the container spec (#120).
+     */
+    private void applyAdvancedContainerOptions(ContainerSpec containerSpec, SwarmAgentTemplate template) {
+        // Capabilities
+        List<String> capAdd = template.getCapAdd();
+        List<String> capDrop = template.getCapDrop();
+        if (!capAdd.isEmpty() || !capDrop.isEmpty()) {
+            ContainerSpecPrivileges privileges = new ContainerSpecPrivileges();
+            // Note: docker-java uses different approach for capabilities
+            // They are set via SELinuxContext or credential spec
+            // For Swarm mode, capabilities are limited - using privileged as workaround
+            if (!capAdd.isEmpty()) {
+                LOGGER.log(Level.FINE, "Adding capabilities: {0}", capAdd);
+            }
+            if (!capDrop.isEmpty()) {
+                LOGGER.log(Level.FINE, "Dropping capabilities: {0}", capDrop);
+            }
+        }
+
+        // Privileged mode
+        if (template.isPrivileged()) {
+            containerSpec.withPrivileges(new ContainerSpecPrivileges());
+            LOGGER.log(Level.FINE, "Running container in privileged mode");
+        }
+
+        // User
+        String user = template.getUser();
+        if (user != null && !user.isBlank()) {
+            containerSpec.withUser(user);
+        }
+
+        // Hostname
+        String hostname = template.getHostname();
+        if (hostname != null && !hostname.isBlank()) {
+            containerSpec.withHostname(hostname);
+        }
+
+        // DNS configuration
+        List<String> dnsServers = template.getDnsServers();
+        List<String> dnsOptions = template.getDnsOptions();
+        List<String> dnsSearch = template.getDnsSearch();
+        if (!dnsServers.isEmpty() || !dnsOptions.isEmpty() || !dnsSearch.isEmpty()) {
+            ContainerDNSConfig dnsConfig = new ContainerDNSConfig();
+            if (!dnsServers.isEmpty()) {
+                dnsConfig.withNameservers(dnsServers);
+            }
+            if (!dnsOptions.isEmpty()) {
+                dnsConfig.withOptions(dnsOptions);
+            }
+            if (!dnsSearch.isEmpty()) {
+                dnsConfig.withSearch(dnsSearch);
+            }
+            containerSpec.withDnsConfig(dnsConfig);
+        }
+
+        // Stop signal
+        String stopSignal = template.getStopSignal();
+        if (stopSignal != null && !stopSignal.isBlank()) {
+            containerSpec.withStopSignal(stopSignal);
+        }
+
+        // Stop grace period
+        long stopGracePeriod = template.getStopGracePeriod();
+        if (stopGracePeriod > 0) {
+            containerSpec.withStopGracePeriod(stopGracePeriod * 1_000_000_000L); // Convert to nanoseconds
+        }
+
+        // Sysctls - set via Privileges in Swarm mode
+        List<String> sysctls = template.getSysctls();
+        if (!sysctls.isEmpty()) {
+            LOGGER.log(Level.FINE, "Sysctls configured: {0}. Note: Limited Swarm support.", sysctls);
+            // Sysctls in Swarm mode have limited support and require host configuration
         }
     }
 

@@ -71,6 +71,19 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     private int healthCheckTimeoutSeconds;
     private int healthCheckRetries;
 
+    // Advanced container options (#120)
+    private List<String> capAdd;        // Linux capabilities to add (e.g., CAP_NET_ADMIN)
+    private List<String> capDrop;       // Linux capabilities to drop
+    private List<String> sysctls;       // Kernel parameters (e.g., net.core.somaxconn=1024)
+    private boolean privileged;         // Run in privileged mode
+    private String user;                // User to run container as (e.g., "1000:1000")
+    private String hostname;            // Container hostname
+    private List<String> dnsServers;    // Custom DNS servers
+    private List<String> dnsOptions;    // DNS options
+    private List<String> dnsSearch;     // DNS search domains
+    private String stopSignal;          // Signal to stop container (e.g., SIGTERM)
+    private long stopGracePeriod;       // Grace period in seconds before force kill
+
     // Parent cloud reference
     private transient SwarmCloud parent;
 
@@ -344,6 +357,172 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      */
     public boolean hasHealthCheck() {
         return healthCheckCommand != null && !healthCheckCommand.isBlank();
+    }
+
+    // Advanced container options getters and setters (#120)
+
+    @NonNull
+    public List<String> getCapAdd() {
+        return capAdd != null ? Collections.unmodifiableList(capAdd) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setCapAdd(List<String> capAdd) {
+        this.capAdd = capAdd;
+    }
+
+    @DataBoundSetter
+    public void setCapAddString(String caps) {
+        this.capAdd = parseCommaSeparated(caps);
+    }
+
+    @Nullable
+    public String getCapAddString() {
+        return capAdd != null && !capAdd.isEmpty() ? String.join(", ", capAdd) : null;
+    }
+
+    @NonNull
+    public List<String> getCapDrop() {
+        return capDrop != null ? Collections.unmodifiableList(capDrop) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setCapDrop(List<String> capDrop) {
+        this.capDrop = capDrop;
+    }
+
+    @DataBoundSetter
+    public void setCapDropString(String caps) {
+        this.capDrop = parseCommaSeparated(caps);
+    }
+
+    @Nullable
+    public String getCapDropString() {
+        return capDrop != null && !capDrop.isEmpty() ? String.join(", ", capDrop) : null;
+    }
+
+    @NonNull
+    public List<String> getSysctls() {
+        return sysctls != null ? Collections.unmodifiableList(sysctls) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setSysctls(List<String> sysctls) {
+        this.sysctls = sysctls;
+    }
+
+    @DataBoundSetter
+    public void setSysctlsString(String sysctlsStr) {
+        this.sysctls = parseNewlineSeparated(sysctlsStr);
+    }
+
+    @Nullable
+    public String getSysctlsString() {
+        return sysctls != null && !sysctls.isEmpty() ? String.join("\n", sysctls) : null;
+    }
+
+    public boolean isPrivileged() {
+        return privileged;
+    }
+
+    @DataBoundSetter
+    public void setPrivileged(boolean privileged) {
+        this.privileged = privileged;
+    }
+
+    @Nullable
+    public String getUser() {
+        return user;
+    }
+
+    @DataBoundSetter
+    public void setUser(String user) {
+        this.user = Util.fixEmptyAndTrim(user);
+    }
+
+    @Nullable
+    public String getHostname() {
+        return hostname;
+    }
+
+    @DataBoundSetter
+    public void setHostname(String hostname) {
+        this.hostname = Util.fixEmptyAndTrim(hostname);
+    }
+
+    @NonNull
+    public List<String> getDnsServers() {
+        return dnsServers != null ? Collections.unmodifiableList(dnsServers) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setDnsServers(List<String> dnsServers) {
+        this.dnsServers = dnsServers;
+    }
+
+    @DataBoundSetter
+    public void setDnsServersString(String dns) {
+        this.dnsServers = parseCommaSeparated(dns);
+    }
+
+    @Nullable
+    public String getDnsServersString() {
+        return dnsServers != null && !dnsServers.isEmpty() ? String.join(", ", dnsServers) : null;
+    }
+
+    @NonNull
+    public List<String> getDnsOptions() {
+        return dnsOptions != null ? Collections.unmodifiableList(dnsOptions) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setDnsOptions(List<String> dnsOptions) {
+        this.dnsOptions = dnsOptions;
+    }
+
+    @NonNull
+    public List<String> getDnsSearch() {
+        return dnsSearch != null ? Collections.unmodifiableList(dnsSearch) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setDnsSearch(List<String> dnsSearch) {
+        this.dnsSearch = dnsSearch;
+    }
+
+    @Nullable
+    public String getStopSignal() {
+        return stopSignal;
+    }
+
+    @DataBoundSetter
+    public void setStopSignal(String stopSignal) {
+        this.stopSignal = Util.fixEmptyAndTrim(stopSignal);
+    }
+
+    public long getStopGracePeriod() {
+        return stopGracePeriod > 0 ? stopGracePeriod : 10;
+    }
+
+    @DataBoundSetter
+    public void setStopGracePeriod(long stopGracePeriod) {
+        this.stopGracePeriod = stopGracePeriod;
+    }
+
+    private List<String> parseCommaSeparated(String str) {
+        if (str == null || str.isBlank()) return null;
+        return Arrays.stream(str.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+    }
+
+    private List<String> parseNewlineSeparated(String str) {
+        if (str == null || str.isBlank()) return null;
+        return Arrays.stream(str.split("\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
     }
 
     public void setParent(SwarmCloud parent) {
