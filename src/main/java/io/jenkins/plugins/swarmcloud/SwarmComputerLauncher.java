@@ -28,9 +28,10 @@ public class SwarmComputerLauncher extends ComputerLauncher {
     private final boolean useWebSocket;
     private final String tunnel;
     private final String workDir;
+    private final int connectionTimeoutSeconds;
 
     public SwarmComputerLauncher(@NonNull String cloudName, @NonNull String image) {
-        this(cloudName, image, true, null, null);
+        this(cloudName, image, true, null, null, DEFAULT_TIMEOUT_SECONDS);
     }
 
     public SwarmComputerLauncher(@NonNull String cloudName,
@@ -38,11 +39,21 @@ public class SwarmComputerLauncher extends ComputerLauncher {
                                   boolean useWebSocket,
                                   String tunnel,
                                   String workDir) {
+        this(cloudName, image, useWebSocket, tunnel, workDir, DEFAULT_TIMEOUT_SECONDS);
+    }
+
+    public SwarmComputerLauncher(@NonNull String cloudName,
+                                  @NonNull String image,
+                                  boolean useWebSocket,
+                                  String tunnel,
+                                  String workDir,
+                                  int connectionTimeoutSeconds) {
         this.cloudName = cloudName;
         this.image = image;
         this.useWebSocket = useWebSocket;
         this.tunnel = tunnel;
         this.workDir = workDir;
+        this.connectionTimeoutSeconds = connectionTimeoutSeconds > 0 ? connectionTimeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
     }
 
     @Override
@@ -71,9 +82,9 @@ public class SwarmComputerLauncher extends ComputerLauncher {
 
         // The Docker container is already started by the provision() method
         // Agent will connect back to Jenkins using the secret embedded in environment variables
-        logger.println("Waiting for agent to connect...");
+        logger.println("Waiting for agent to connect (timeout: " + connectionTimeoutSeconds + "s)...");
 
-        waitForConnection(computer, listener, DEFAULT_TIMEOUT_SECONDS);
+        waitForConnection(computer, listener, connectionTimeoutSeconds);
     }
 
     /**
@@ -275,5 +286,9 @@ public class SwarmComputerLauncher extends ComputerLauncher {
 
     public String getWorkDir() {
         return workDir;
+    }
+
+    public int getConnectionTimeoutSeconds() {
+        return connectionTimeoutSeconds;
     }
 }

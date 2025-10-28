@@ -10,6 +10,7 @@ import hudson.model.TaskListener;
 import hudson.slaves.AbstractCloudComputer;
 import hudson.slaves.AbstractCloudSlave;
 import hudson.slaves.OfflineCause;
+import io.jenkins.plugins.swarmcloud.monitoring.SwarmAuditLog;
 import jenkins.model.Jenkins;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -37,25 +38,12 @@ public class SwarmAgent extends AbstractCloudSlave {
                       @NonNull SwarmAgentTemplate template,
                       @NonNull String cloudName,
                       @NonNull String serviceId) throws Descriptor.FormException, IOException {
-        super(
-                name,
-                "Swarm Agent " + name,
-                template.getRemoteFs(),
-                template.getNumExecutors(),
-                template.getMode(),
-                template.getLabelString(),
-                new SwarmComputerLauncher(cloudName, template.getImage()),
-                new SwarmRetentionStrategy(DEFAULT_IDLE_MINUTES),
-                java.util.Collections.emptyList()
-        );
-        this.cloudName = cloudName;
-        this.serviceId = serviceId;
-        this.templateName = template.getName();
-        this.createdTime = System.currentTimeMillis();
+        this(name, template, cloudName, serviceId, DEFAULT_IDLE_MINUTES);
     }
 
     /**
      * Constructor with custom idle timeout.
+     * Connection timeout is taken from the template configuration.
      */
     public SwarmAgent(@NonNull String name,
                       @NonNull SwarmAgentTemplate template,
@@ -69,7 +57,14 @@ public class SwarmAgent extends AbstractCloudSlave {
                 template.getNumExecutors(),
                 template.getMode(),
                 template.getLabelString(),
-                new SwarmComputerLauncher(cloudName, template.getImage()),
+                new SwarmComputerLauncher(
+                        cloudName,
+                        template.getImage(),
+                        true, // useWebSocket
+                        null, // tunnel
+                        template.getRemoteFs(),
+                        template.getConnectionTimeoutSeconds()
+                ),
                 new SwarmRetentionStrategy(idleMinutes > 0 ? idleMinutes : DEFAULT_IDLE_MINUTES),
                 java.util.Collections.emptyList()
         );
@@ -141,6 +136,20 @@ public class SwarmAgent extends AbstractCloudSlave {
         logger.println("Terminating Swarm agent: " + name);
         LOGGER.log(Level.INFO, "Terminating Swarm agent: {0}, service: {1}", new Object[]{name, serviceId});
 
+        // Determine termination reason
+        String terminationReason = "Manual termination";
+        Computer computer = toComputer();
+        if (computer != null) {
+            if (computer.isIdle()) {
+                terminationReason = "Idle timeout";
+            } else if (computer.isOffline()) {
+                var offlineCause = computer.getOfflineCause();
+                if (offlineCause != null) {
+                    terminationReason = offlineCause.toString();
+                }
+            }
+        }
+
         SwarmCloud cloud = getCloud();
         if (cloud != null) {
             // Decrement instance count on template
@@ -155,11 +164,16 @@ public class SwarmAgent extends AbstractCloudSlave {
                 cloud.getDockerClient().removeService(serviceId);
                 logger.println("Removed Docker Swarm service: " + serviceId);
                 LOGGER.log(Level.INFO, "Removed Docker Swarm service: {0}", serviceId);
+
+                // Audit log termination
+                SwarmAuditLog.logTermination(cloudName, name, serviceId, terminationReason);
             } catch (Exception e) {
                 // Service might already be removed
                 if (e.getMessage() != null && e.getMessage().contains("not found")) {
                     logger.println("Service already removed: " + serviceId);
                     LOGGER.log(Level.FINE, "Service already removed: {0}", serviceId);
+                    // Still log termination
+                    SwarmAuditLog.logTermination(cloudName, name, serviceId, "Service already removed");
                 } else {
                     LOGGER.log(Level.WARNING, "Failed to remove Docker Swarm service: " + serviceId, e);
                     logger.println("Warning: Failed to remove service: " + e.getMessage());
@@ -169,6 +183,8 @@ public class SwarmAgent extends AbstractCloudSlave {
             LOGGER.log(Level.WARNING, "Cloud not found for agent: {0}, cloud name: {1}",
                     new Object[]{name, cloudName});
             logger.println("Warning: Cloud not found, service may need manual cleanup: " + serviceId);
+            // Still log termination for audit
+            SwarmAuditLog.logTermination(cloudName, name, serviceId, "Cloud not found");
         }
     }
 

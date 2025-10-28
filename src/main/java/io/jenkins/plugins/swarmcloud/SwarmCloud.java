@@ -18,6 +18,7 @@ import hudson.slaves.NodeProvisioner;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import io.jenkins.plugins.swarmcloud.api.DockerSwarmClient;
+import io.jenkins.plugins.swarmcloud.monitoring.SwarmAuditLog;
 import io.jenkins.plugins.swarmcloud.ratelimit.ProvisionRateLimiter;
 import jenkins.model.Jenkins;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerServerCredentials;
@@ -202,6 +203,20 @@ public class SwarmCloud extends Cloud {
     }
 
     /**
+     * Finds a template by name.
+     * Used for template inheritance resolution.
+     */
+    @Nullable
+    public SwarmAgentTemplate getTemplateByName(@NonNull String name) {
+        for (SwarmAgentTemplate template : getTemplates()) {
+            if (name.equals(template.getName())) {
+                return template;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Checks if we can provision more agents.
      */
     public boolean canProvision() {
@@ -311,7 +326,7 @@ public class SwarmCloud extends Cloud {
     }
 
     /**
-     * Callback for provisioning an agent.
+     * Callback for provisioning an agent with retry support and audit logging.
      */
     private static class ProvisioningCallback implements Callable<Node> {
         private final SwarmCloud cloud;
@@ -328,40 +343,81 @@ public class SwarmCloud extends Cloud {
         public Node call() throws Exception {
             LOGGER.log(Level.INFO, "Provisioning agent: {0}", agentName);
 
-            try {
-                // Create Docker Swarm service
-                String serviceId = cloud.getDockerClient().createService(
-                        agentName,
-                        template,
-                        cloud.getEffectiveJenkinsUrl(),
-                        cloud.getSwarmNetwork()
-                );
+            // Resolve template inheritance
+            SwarmAgentTemplate resolvedTemplate = template.resolve();
 
-                LOGGER.log(Level.INFO, "Created Docker Swarm service: {0} for agent: {1}",
-                        new Object[]{serviceId, agentName});
+            // Get retry configuration from template
+            int maxRetries = resolvedTemplate.getProvisionRetryCount();
+            long baseDelayMs = resolvedTemplate.getProvisionRetryDelayMs();
+            int idleTimeoutMinutes = resolvedTemplate.getIdleTimeoutMinutes();
 
-                // Create Jenkins agent
-                SwarmAgent agent = new SwarmAgent(
-                        agentName,
-                        template,
-                        cloud.name,
-                        serviceId
-                );
+            Exception lastException = null;
 
-                // Reset failure count on success
-                if (cloud.isRateLimitEnabled()) {
-                    ProvisionRateLimiter.resetFailures(cloud.name);
+            for (int attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    if (attempt > 0) {
+                        // Exponential backoff: baseDelay * 2^(attempt-1)
+                        long delayMs = baseDelayMs * (1L << (attempt - 1));
+                        // Cap at 30 seconds
+                        delayMs = Math.min(delayMs, 30000L);
+                        LOGGER.log(Level.INFO, "Retry attempt {0}/{1} for agent {2}, waiting {3}ms",
+                                new Object[]{attempt, maxRetries, agentName, delayMs});
+                        Thread.sleep(delayMs);
+                    }
+
+                    // Create Docker Swarm service
+                    String serviceId = cloud.getDockerClient().createService(
+                            agentName,
+                            resolvedTemplate,
+                            cloud.getEffectiveJenkinsUrl(),
+                            cloud.getSwarmNetwork()
+                    );
+
+                    LOGGER.log(Level.INFO, "Created Docker Swarm service: {0} for agent: {1}",
+                            new Object[]{serviceId, agentName});
+
+                    // Create Jenkins agent with idle timeout from template
+                    SwarmAgent agent = new SwarmAgent(
+                            agentName,
+                            resolvedTemplate,
+                            cloud.name,
+                            serviceId,
+                            idleTimeoutMinutes
+                    );
+
+                    // Reset failure count on success
+                    if (cloud.isRateLimitEnabled()) {
+                        ProvisionRateLimiter.resetFailures(cloud.name);
+                    }
+
+                    // Audit log success
+                    SwarmAuditLog.logProvision(cloud.name, template.getName(), agentName, serviceId);
+
+                    return agent;
+
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                } catch (Exception e) {
+                    lastException = e;
+                    LOGGER.log(Level.WARNING, "Provision attempt {0}/{1} failed for agent {2}: {3}",
+                            new Object[]{attempt + 1, maxRetries + 1, agentName, e.getMessage()});
                 }
-
-                return agent;
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Failed to provision agent: " + agentName, e);
-                // Record failure for rate limiting
-                if (cloud.isRateLimitEnabled()) {
-                    ProvisionRateLimiter.recordFailure(cloud.name);
-                }
-                throw e;
             }
+
+            // All retries exhausted
+            LOGGER.log(Level.SEVERE, "Failed to provision agent after " + (maxRetries + 1) + " attempts: " + agentName, lastException);
+
+            // Record failure for rate limiting
+            if (cloud.isRateLimitEnabled()) {
+                ProvisionRateLimiter.recordFailure(cloud.name);
+            }
+
+            // Audit log failure
+            String errorMsg = lastException != null ? lastException.getMessage() : "Unknown error";
+            SwarmAuditLog.logProvisionFailure(cloud.name, template.getName(), errorMsg);
+
+            throw lastException != null ? lastException : new Exception("Failed to provision agent");
         }
     }
 

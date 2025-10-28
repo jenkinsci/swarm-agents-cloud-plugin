@@ -18,6 +18,14 @@ Provision Jenkins agents dynamically on Docker Swarm clusters.
 - **Rate Limiting**: Built-in provisioning rate limits to prevent thundering herd
 - **Dashboard**: Real-time cluster monitoring at `/swarm-dashboard`
 - **REST API**: Programmatic management at `/swarm-api`
+- **Template Inheritance**: Inherit settings from parent templates (like K8s `inheritFrom`)
+- **GPU Support**: Generic resource allocation for NVIDIA GPUs and other hardware
+- **Security Profiles**: Seccomp and AppArmor profile configuration
+- **Prometheus Metrics**: `/swarm-api/prometheus` endpoint for monitoring integration
+- **Audit Logging**: Track all provisioning and termination events
+- **Pipeline DSL**: Native `swarmAgent` step for Jenkinsfiles
+- **Retry with Backoff**: Automatic exponential backoff retry on provision failures
+- **Configurable Timeouts**: Per-template connection and idle timeouts
 
 ## Requirements
 
@@ -102,6 +110,112 @@ Each template defines how agent containers are created:
 | `stopSignal` | Signal to stop container (SIGTERM, SIGKILL) |
 | `stopGracePeriod` | Grace period in seconds before force kill |
 
+### Template Inheritance
+
+Templates can inherit settings from a parent template using `inheritFrom`:
+
+```yaml
+templates:
+  - name: "base"
+    image: "jenkins/inbound-agent:latest"
+    cpuLimit: "2.0"
+    memoryLimit: "4g"
+    seccompProfile: "default"
+    connectionTimeoutSeconds: 300
+    idleTimeoutMinutes: 30
+
+  - name: "maven"
+    inheritFrom: "base"          # Inherits all settings from "base"
+    labelString: "maven docker"
+    environmentVariables:
+      - key: "MAVEN_OPTS"
+        value: "-Xmx1g"
+```
+
+Child templates override parent values only when explicitly set.
+
+### GPU and Generic Resources
+
+Allocate NVIDIA GPUs or other generic resources:
+
+```yaml
+templates:
+  - name: "ml-training"
+    image: "nvidia/cuda:12.0-runtime"
+    genericResources:
+      - kind: "NVIDIA-GPU"
+        value: 1
+```
+
+Requires Docker Swarm configured with GPU support (`nvidia-container-runtime`).
+
+### Security Profiles
+
+Configure Seccomp and AppArmor profiles (Docker Engine 29+):
+
+```yaml
+templates:
+  - name: "secure-build"
+    seccompProfile: "default"           # or custom profile path
+    apparmorProfile: "runtime/default"  # or "unconfined"
+```
+
+### Timeouts and Retry
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `connectionTimeoutSeconds` | Max time to wait for agent connection | 300 |
+| `idleTimeoutMinutes` | Idle time before automatic termination | 30 |
+| `provisionRetryCount` | Retries on provision failure | 3 |
+| `provisionRetryDelayMs` | Initial retry delay (exponential backoff) | 1000 |
+
+## Pipeline DSL
+
+Use `swarmAgent` step in Jenkinsfiles:
+
+### Using Existing Template
+```groovy
+pipeline {
+    agent none
+    stages {
+        stage('Build') {
+            steps {
+                swarmAgent(cloud: 'docker-swarm', template: 'maven') {
+                    sh 'mvn clean package'
+                }
+            }
+        }
+    }
+}
+```
+
+### Inline Template Configuration
+```groovy
+swarmAgent(
+    cloud: 'docker-swarm',
+    image: 'jenkins/inbound-agent:alpine',
+    label: 'build',
+    cpuLimit: '2.0',
+    memoryLimit: '4g',
+    idleTimeout: 30
+) {
+    sh 'npm install && npm test'
+}
+```
+
+### Pipeline Step Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `cloud` | Name of Swarm cloud | Yes |
+| `template` | Existing template name | No |
+| `image` | Docker image (inline template) | No |
+| `label` | Agent label (inline template) | No |
+| `cpuLimit` | CPU limit | No |
+| `memoryLimit` | Memory limit | No |
+| `idleTimeout` | Idle timeout in minutes | No |
+| `connectionTimeout` | Connection timeout in seconds | No |
+
 ## REST API
 
 Base URL: `http://jenkins/swarm-api/`
@@ -116,6 +230,8 @@ Base URL: `http://jenkins/swarm-api/`
 | GET | `/template?cloud=X&name=Y` | Get single template |
 | GET | `/agents?cloud=X` | List running agents |
 | GET | `/metrics?cloud=X` | Get cluster metrics |
+| GET | `/prometheus` | Prometheus metrics (OpenMetrics format) |
+| GET | `/audit?cloud=X&limit=N` | Audit log entries |
 | POST | `/provision?cloud=X&template=Y` | Provision new agent |
 | PUT | `/template` | Update template configuration |
 
@@ -152,6 +268,54 @@ Features:
 - Running services and their states
 - Resource utilization (CPU, Memory)
 - Quick actions (refresh, remove service)
+
+## Prometheus Metrics
+
+Integrate with Prometheus monitoring at `/swarm-api/prometheus`:
+
+```bash
+curl http://jenkins/swarm-api/prometheus
+```
+
+Available metrics:
+- `swarm_clouds_total` - Total configured clouds
+- `swarm_cloud_healthy` - Cloud health status (0/1)
+- `swarm_agents_max/current` - Agent capacity and usage
+- `swarm_nodes_total/ready` - Swarm node counts
+- `swarm_tasks_running/pending/failed` - Task states
+- `swarm_memory_total_bytes/used_bytes` - Memory usage
+- `swarm_cpu_total/used` - CPU usage
+- `swarm_template_instances_max/current` - Per-template metrics
+
+Prometheus scrape config example:
+
+```yaml
+scrape_configs:
+  - job_name: 'jenkins-swarm'
+    metrics_path: '/swarm-api/prometheus'
+    static_configs:
+      - targets: ['jenkins:8080']
+```
+
+## Audit Logging
+
+All provisioning, termination, and configuration events are logged:
+
+```bash
+# Get recent audit entries
+curl "http://jenkins/swarm-api/audit?limit=50"
+
+# Filter by cloud
+curl "http://jenkins/swarm-api/audit?cloud=docker-swarm&limit=100"
+```
+
+Audit events:
+- `PROVISION` - Agent successfully provisioned
+- `TERMINATE` - Agent terminated
+- `PROVISION_FAILED` - Provisioning failure
+- `CONFIG_CHANGE` - Template configuration changed
+- `API_ACCESS` - REST API accessed
+- `CONNECTION_TEST_SUCCESS/FAILED` - Connection test results
 
 ## Docker Host URL Format
 

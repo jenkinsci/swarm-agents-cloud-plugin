@@ -84,6 +84,24 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     private String stopSignal;          // Signal to stop container (e.g., SIGTERM)
     private long stopGracePeriod;       // Grace period in seconds before force kill
 
+    // Template inheritance (like K8s plugin inheritFrom)
+    private String inheritFrom;         // Name of parent template to inherit from
+
+    // Generic resources (GPU support)
+    private List<GenericResource> genericResources;  // e.g., NVIDIA-GPU=1
+
+    // Security profiles (Docker Engine 29+)
+    private String seccompProfile;      // "default", "unconfined", or custom profile path
+    private String apparmorProfile;     // "runtime/default", "unconfined", or custom profile
+
+    // Connection and idle timeouts
+    private int connectionTimeoutSeconds;  // Max time to wait for agent connection (default 300)
+    private int idleTimeoutMinutes;        // Idle time before termination (default 30)
+
+    // Retry configuration for provisioning
+    private int provisionRetryCount;       // Number of retries on failure (default 3)
+    private long provisionRetryDelayMs;    // Initial delay between retries (default 1000)
+
     // Parent cloud reference
     private transient SwarmCloud parent;
 
@@ -509,6 +527,210 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.stopGracePeriod = stopGracePeriod;
     }
 
+    // ==================== New features getters/setters ====================
+
+    @Nullable
+    public String getInheritFrom() {
+        return inheritFrom;
+    }
+
+    @DataBoundSetter
+    public void setInheritFrom(String inheritFrom) {
+        this.inheritFrom = Util.fixEmptyAndTrim(inheritFrom);
+    }
+
+    @NonNull
+    public List<GenericResource> getGenericResources() {
+        return genericResources != null ? Collections.unmodifiableList(genericResources) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setGenericResources(List<GenericResource> genericResources) {
+        this.genericResources = genericResources;
+    }
+
+    /**
+     * Gets generic resources as string for UI (comma-separated: NVIDIA-GPU=1, FPGA=2)
+     */
+    @Nullable
+    public String getGenericResourcesString() {
+        if (genericResources == null || genericResources.isEmpty()) return null;
+        return genericResources.stream()
+                .map(r -> r.getKind() + "=" + r.getValue())
+                .collect(Collectors.joining(", "));
+    }
+
+    @DataBoundSetter
+    public void setGenericResourcesString(String str) {
+        if (str == null || str.isBlank()) {
+            this.genericResources = null;
+            return;
+        }
+        this.genericResources = Arrays.stream(str.split(","))
+                .map(String::trim)
+                .filter(s -> s.contains("="))
+                .map(s -> {
+                    String[] parts = s.split("=", 2);
+                    return new GenericResource(parts[0].trim(), Long.parseLong(parts[1].trim()));
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Nullable
+    public String getSeccompProfile() {
+        return seccompProfile;
+    }
+
+    @DataBoundSetter
+    public void setSeccompProfile(String seccompProfile) {
+        this.seccompProfile = Util.fixEmptyAndTrim(seccompProfile);
+    }
+
+    @Nullable
+    public String getApparmorProfile() {
+        return apparmorProfile;
+    }
+
+    @DataBoundSetter
+    public void setApparmorProfile(String apparmorProfile) {
+        this.apparmorProfile = Util.fixEmptyAndTrim(apparmorProfile);
+    }
+
+    public int getConnectionTimeoutSeconds() {
+        return connectionTimeoutSeconds > 0 ? connectionTimeoutSeconds : 300;
+    }
+
+    @DataBoundSetter
+    public void setConnectionTimeoutSeconds(int connectionTimeoutSeconds) {
+        this.connectionTimeoutSeconds = connectionTimeoutSeconds;
+    }
+
+    public int getIdleTimeoutMinutes() {
+        return idleTimeoutMinutes > 0 ? idleTimeoutMinutes : 30;
+    }
+
+    @DataBoundSetter
+    public void setIdleTimeoutMinutes(int idleTimeoutMinutes) {
+        this.idleTimeoutMinutes = idleTimeoutMinutes;
+    }
+
+    public int getProvisionRetryCount() {
+        return provisionRetryCount > 0 ? provisionRetryCount : 3;
+    }
+
+    @DataBoundSetter
+    public void setProvisionRetryCount(int provisionRetryCount) {
+        this.provisionRetryCount = provisionRetryCount;
+    }
+
+    public long getProvisionRetryDelayMs() {
+        return provisionRetryDelayMs > 0 ? provisionRetryDelayMs : 1000;
+    }
+
+    @DataBoundSetter
+    public void setProvisionRetryDelayMs(long provisionRetryDelayMs) {
+        this.provisionRetryDelayMs = provisionRetryDelayMs;
+    }
+
+    /**
+     * Resolves this template by merging with parent template if inheritFrom is set.
+     * Similar to Kubernetes plugin podTemplate inheritance.
+     *
+     * @return Resolved template with inherited values
+     */
+    @NonNull
+    public SwarmAgentTemplate resolve() {
+        if (inheritFrom == null || inheritFrom.isBlank() || parent == null) {
+            return this;
+        }
+
+        SwarmAgentTemplate parentTemplate = parent.getTemplateByName(inheritFrom);
+        if (parentTemplate == null) {
+            LOGGER.warning("Parent template '" + inheritFrom + "' not found, using current template as-is");
+            return this;
+        }
+
+        // Create merged template
+        SwarmAgentTemplate resolved = new SwarmAgentTemplate(this.name);
+        resolved.setParent(this.parent);
+
+        // Inherit from parent, override with current values
+        resolved.setImage(this.image != null ? this.image : parentTemplate.getImage());
+        resolved.setLabelString(mergeLabelStrings(parentTemplate.getLabelString(), this.labelString));
+        resolved.setCommand(this.command != null ? this.command : parentTemplate.getCommand());
+        resolved.setRemoteFs(this.remoteFs != null ? this.remoteFs : parentTemplate.getRemoteFs());
+        resolved.setNumExecutors(this.numExecutors > 0 ? this.numExecutors : parentTemplate.getNumExecutors());
+        resolved.setMaxInstances(this.maxInstances > 0 ? this.maxInstances : parentTemplate.getMaxInstances());
+        resolved.setMode(this.mode != null ? this.mode : parentTemplate.getMode());
+
+        // Resources - child overrides parent
+        resolved.setCpuLimit(this.cpuLimit != null ? this.cpuLimit : parentTemplate.getCpuLimit());
+        resolved.setMemoryLimit(this.memoryLimit != null ? this.memoryLimit : parentTemplate.getMemoryLimit());
+        resolved.setCpuReservation(this.cpuReservation != null ? this.cpuReservation : parentTemplate.getCpuReservation());
+        resolved.setMemoryReservation(this.memoryReservation != null ? this.memoryReservation : parentTemplate.getMemoryReservation());
+
+        // Merge lists (mounts, envVars, secrets)
+        resolved.setMounts(mergeLists(parentTemplate.getMounts(), this.mounts));
+        resolved.setEnvironmentVariables(mergeLists(parentTemplate.getEnvironmentVariables(), this.environmentVariables));
+        resolved.setSecrets(mergeLists(parentTemplate.getSecrets(), this.secrets));
+
+        // Placement constraints - merge
+        resolved.setPlacementConstraints(mergeLists(parentTemplate.getPlacementConstraints(), this.placementConstraints));
+        resolved.setNetworkAliases(mergeLists(parentTemplate.getNetworkAliases(), this.networkAliases));
+
+        // Health check - child overrides
+        resolved.setHealthCheckCommand(this.healthCheckCommand != null ? this.healthCheckCommand : parentTemplate.getHealthCheckCommand());
+        resolved.setHealthCheckIntervalSeconds(this.healthCheckIntervalSeconds > 0 ? this.healthCheckIntervalSeconds : parentTemplate.getHealthCheckIntervalSeconds());
+        resolved.setHealthCheckTimeoutSeconds(this.healthCheckTimeoutSeconds > 0 ? this.healthCheckTimeoutSeconds : parentTemplate.getHealthCheckTimeoutSeconds());
+        resolved.setHealthCheckRetries(this.healthCheckRetries > 0 ? this.healthCheckRetries : parentTemplate.getHealthCheckRetries());
+
+        // Advanced options - merge capabilities, override others
+        resolved.setCapAdd(mergeLists(parentTemplate.getCapAdd(), this.capAdd));
+        resolved.setCapDrop(mergeLists(parentTemplate.getCapDrop(), this.capDrop));
+        resolved.setSysctls(mergeLists(parentTemplate.getSysctls(), this.sysctls));
+        resolved.setPrivileged(this.privileged || parentTemplate.isPrivileged());
+        resolved.setUser(this.user != null ? this.user : parentTemplate.getUser());
+        resolved.setHostname(this.hostname != null ? this.hostname : parentTemplate.getHostname());
+        resolved.setDnsServers(mergeLists(parentTemplate.getDnsServers(), this.dnsServers));
+        resolved.setDnsOptions(mergeLists(parentTemplate.getDnsOptions(), this.dnsOptions));
+        resolved.setDnsSearch(mergeLists(parentTemplate.getDnsSearch(), this.dnsSearch));
+        resolved.setStopSignal(this.stopSignal != null ? this.stopSignal : parentTemplate.getStopSignal());
+        resolved.setStopGracePeriod(this.stopGracePeriod > 0 ? this.stopGracePeriod : parentTemplate.getStopGracePeriod());
+
+        // New features
+        resolved.setGenericResources(mergeLists(parentTemplate.getGenericResources(), this.genericResources));
+        resolved.setSeccompProfile(this.seccompProfile != null ? this.seccompProfile : parentTemplate.getSeccompProfile());
+        resolved.setApparmorProfile(this.apparmorProfile != null ? this.apparmorProfile : parentTemplate.getApparmorProfile());
+        resolved.setConnectionTimeoutSeconds(this.connectionTimeoutSeconds > 0 ? this.connectionTimeoutSeconds : parentTemplate.getConnectionTimeoutSeconds());
+        resolved.setIdleTimeoutMinutes(this.idleTimeoutMinutes > 0 ? this.idleTimeoutMinutes : parentTemplate.getIdleTimeoutMinutes());
+        resolved.setProvisionRetryCount(this.provisionRetryCount > 0 ? this.provisionRetryCount : parentTemplate.getProvisionRetryCount());
+        resolved.setProvisionRetryDelayMs(this.provisionRetryDelayMs > 0 ? this.provisionRetryDelayMs : parentTemplate.getProvisionRetryDelayMs());
+
+        return resolved;
+    }
+
+    private String mergeLabelStrings(String parent, String child) {
+        if (child == null || child.isBlank()) return parent;
+        if (parent == null || parent.isBlank()) return child;
+        // Combine labels
+        Set<String> labels = new java.util.LinkedHashSet<>();
+        labels.addAll(Arrays.asList(parent.split("\\s+")));
+        labels.addAll(Arrays.asList(child.split("\\s+")));
+        return String.join(" ", labels);
+    }
+
+    private <T> List<T> mergeLists(List<T> parent, List<T> child) {
+        if (child != null && !child.isEmpty()) {
+            if (parent == null || parent.isEmpty()) {
+                return new ArrayList<>(child);
+            }
+            List<T> merged = new ArrayList<>(parent);
+            merged.addAll(child);
+            return merged;
+        }
+        return parent != null ? new ArrayList<>(parent) : Collections.emptyList();
+    }
+
     private List<String> parseCommaSeparated(String str) {
         if (str == null || str.isBlank()) return null;
         return Arrays.stream(str.split(","))
@@ -598,6 +820,44 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      */
     public int getCurrentInstances() {
         return currentInstances.get();
+    }
+
+    /**
+     * Generic resource configuration for Docker Swarm (e.g., GPU).
+     * Maps to Swarm's GenericResource in task resource requirements.
+     */
+    public static class GenericResource extends AbstractDescribableImpl<GenericResource> {
+        private final String kind;  // e.g., "NVIDIA-GPU", "FPGA", "SSD"
+        private final long value;   // e.g., 1, 2
+
+        @DataBoundConstructor
+        public GenericResource(String kind, long value) {
+            this.kind = kind;
+            this.value = value;
+        }
+
+        public String getKind() {
+            return kind;
+        }
+
+        public long getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return kind + "=" + value;
+        }
+
+        @Extension
+        @Symbol("swarmGenericResource")
+        public static class DescriptorImpl extends Descriptor<GenericResource> {
+            @NonNull
+            @Override
+            public String getDisplayName() {
+                return "Generic Resource";
+            }
+        }
     }
 
     /**

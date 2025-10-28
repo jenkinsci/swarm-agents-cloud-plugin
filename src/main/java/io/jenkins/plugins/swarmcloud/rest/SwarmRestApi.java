@@ -9,6 +9,7 @@ import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
 import io.jenkins.plugins.swarmcloud.SwarmCloud;
 import io.jenkins.plugins.swarmcloud.monitoring.ClusterMonitor;
 import io.jenkins.plugins.swarmcloud.monitoring.ClusterStatus;
+import io.jenkins.plugins.swarmcloud.monitoring.SwarmAuditLog;
 import jenkins.model.Jenkins;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
@@ -483,6 +484,184 @@ public class SwarmRestApi implements RootAction {
         t.put("cpuLimit", template.getCpuLimit());
         t.put("memoryLimit", template.getMemoryLimit());
         return t;
+    }
+
+    /**
+     * GET /swarm-api/prometheus - Prometheus metrics endpoint
+     * Returns metrics in Prometheus text format (OpenMetrics compatible)
+     */
+    @GET
+    public void doPrometheus(StaplerRequest req, StaplerResponse rsp) throws IOException {
+        // Prometheus endpoint can be accessed without admin permission for monitoring
+        // but we still check basic read permission
+        Jenkins.get().checkPermission(Jenkins.READ);
+
+        StringBuilder sb = new StringBuilder();
+
+        // Header comment
+        sb.append("# HELP swarm_clouds_total Total number of configured Swarm clouds\n");
+        sb.append("# TYPE swarm_clouds_total gauge\n");
+        sb.append("swarm_clouds_total ").append(getSwarmClouds().size()).append("\n\n");
+
+        long totalAgents = 0;
+        long totalProvisioned = 0;
+
+        for (SwarmCloud cloud : getSwarmClouds()) {
+            String cloudName = sanitizeMetricLabel(cloud.name);
+            ClusterStatus status = ClusterMonitor.getStatus(cloud.name);
+
+            // Cloud health
+            sb.append("# HELP swarm_cloud_healthy Whether the cloud is healthy (1) or not (0)\n");
+            sb.append("# TYPE swarm_cloud_healthy gauge\n");
+            sb.append("swarm_cloud_healthy{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.isHealthy() ? 1 : 0).append("\n\n");
+
+            // Agents metrics
+            sb.append("# HELP swarm_agents_max Maximum agents allowed for this cloud\n");
+            sb.append("# TYPE swarm_agents_max gauge\n");
+            sb.append("swarm_agents_max{cloud=\"").append(cloudName).append("\"} ")
+                    .append(cloud.getMaxConcurrentAgents()).append("\n");
+
+            sb.append("# HELP swarm_agents_current Current number of agents\n");
+            sb.append("# TYPE swarm_agents_current gauge\n");
+            sb.append("swarm_agents_current{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getCurrentAgents()).append("\n\n");
+
+            totalAgents += status.getCurrentAgents();
+
+            // Cluster nodes
+            sb.append("# HELP swarm_nodes_total Total nodes in the Swarm cluster\n");
+            sb.append("# TYPE swarm_nodes_total gauge\n");
+            sb.append("swarm_nodes_total{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getTotalNodes()).append("\n");
+
+            sb.append("# HELP swarm_nodes_ready Ready nodes in the Swarm cluster\n");
+            sb.append("# TYPE swarm_nodes_ready gauge\n");
+            sb.append("swarm_nodes_ready{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getReadyNodes()).append("\n\n");
+
+            // Tasks
+            sb.append("# HELP swarm_tasks_running Running tasks in the cluster\n");
+            sb.append("# TYPE swarm_tasks_running gauge\n");
+            sb.append("swarm_tasks_running{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getRunningTasks()).append("\n");
+
+            sb.append("# HELP swarm_tasks_pending Pending tasks in the cluster\n");
+            sb.append("# TYPE swarm_tasks_pending gauge\n");
+            sb.append("swarm_tasks_pending{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getPendingTasks()).append("\n");
+
+            sb.append("# HELP swarm_tasks_failed Failed tasks in the cluster\n");
+            sb.append("# TYPE swarm_tasks_failed gauge\n");
+            sb.append("swarm_tasks_failed{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getFailedTasks()).append("\n\n");
+
+            // Resources
+            sb.append("# HELP swarm_memory_total_bytes Total memory in the cluster\n");
+            sb.append("# TYPE swarm_memory_total_bytes gauge\n");
+            sb.append("swarm_memory_total_bytes{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getTotalMemory()).append("\n");
+
+            sb.append("# HELP swarm_memory_used_bytes Used memory in the cluster\n");
+            sb.append("# TYPE swarm_memory_used_bytes gauge\n");
+            sb.append("swarm_memory_used_bytes{cloud=\"").append(cloudName).append("\"} ")
+                    .append(status.getUsedMemory()).append("\n");
+
+            sb.append("# HELP swarm_cpu_total Total CPU cores in the cluster\n");
+            sb.append("# TYPE swarm_cpu_total gauge\n");
+            sb.append("swarm_cpu_total{cloud=\"").append(cloudName).append("\"} ")
+                    .append(String.format("%.2f", status.getTotalCpu())).append("\n");
+
+            sb.append("# HELP swarm_cpu_used Used CPU cores in the cluster\n");
+            sb.append("# TYPE swarm_cpu_used gauge\n");
+            sb.append("swarm_cpu_used{cloud=\"").append(cloudName).append("\"} ")
+                    .append(String.format("%.2f", status.getUsedCpu())).append("\n\n");
+
+            // Utilization
+            sb.append("# HELP swarm_utilization_percent Agent utilization percentage\n");
+            sb.append("# TYPE swarm_utilization_percent gauge\n");
+            sb.append("swarm_utilization_percent{cloud=\"").append(cloudName).append("\"} ")
+                    .append(String.format("%.2f", status.getUtilizationPercent())).append("\n\n");
+
+            // Per-template metrics
+            for (SwarmAgentTemplate template : cloud.getTemplates()) {
+                String templateName = sanitizeMetricLabel(template.getName());
+
+                sb.append("# HELP swarm_template_instances_max Max instances for template\n");
+                sb.append("# TYPE swarm_template_instances_max gauge\n");
+                sb.append("swarm_template_instances_max{cloud=\"").append(cloudName)
+                        .append("\",template=\"").append(templateName).append("\"} ")
+                        .append(template.getMaxInstances()).append("\n");
+
+                sb.append("# HELP swarm_template_instances_current Current instances for template\n");
+                sb.append("# TYPE swarm_template_instances_current gauge\n");
+                sb.append("swarm_template_instances_current{cloud=\"").append(cloudName)
+                        .append("\",template=\"").append(templateName).append("\"} ")
+                        .append(template.getCurrentInstances()).append("\n");
+
+                totalProvisioned += template.getCurrentInstances();
+            }
+            sb.append("\n");
+        }
+
+        // Summary metrics
+        sb.append("# HELP swarm_agents_total_all Total agents across all clouds\n");
+        sb.append("# TYPE swarm_agents_total_all gauge\n");
+        sb.append("swarm_agents_total_all ").append(totalAgents).append("\n");
+
+        // Write response in Prometheus format
+        rsp.setStatus(200);
+        rsp.setContentType("text/plain; version=0.0.4; charset=utf-8");
+        try (PrintWriter writer = rsp.getWriter()) {
+            writer.write(sb.toString());
+        }
+    }
+
+    /**
+     * Sanitizes a string for use as a Prometheus metric label value.
+     */
+    private String sanitizeMetricLabel(String value) {
+        if (value == null) return "unknown";
+        // Replace non-alphanumeric chars with underscore, remove consecutive underscores
+        return value.replaceAll("[^a-zA-Z0-9_]", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_|_$", "");
+    }
+
+    /**
+     * GET /swarm-api/audit - Get audit log entries
+     *
+     * @param cloud Optional cloud name filter
+     * @param limit Maximum entries to return (default 100)
+     */
+    @GET
+    public void doAudit(StaplerRequest req, StaplerResponse rsp,
+                        @QueryParameter String cloud,
+                        @QueryParameter(value = "limit") Integer limitParam) throws IOException {
+        Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+
+        int limit = (limitParam != null && limitParam > 0) ? Math.min(limitParam, 500) : 100;
+
+        var entries = (cloud != null && !cloud.isBlank())
+                ? SwarmAuditLog.getEntriesForCloud(cloud, limit)
+                : SwarmAuditLog.getRecentEntries(limit);
+
+        JSONArray result = new JSONArray();
+        for (var entry : entries) {
+            JSONObject e = new JSONObject();
+            e.put("timestamp", entry.getTimestamp());
+            e.put("formattedTimestamp", entry.getFormattedTimestamp());
+            e.put("event", entry.getEvent().name());
+            e.put("cloudName", entry.getCloudName());
+            e.put("templateName", entry.getTemplateName());
+            e.put("agentName", entry.getAgentName());
+            e.put("serviceId", entry.getServiceId());
+            e.put("message", entry.getMessage());
+            e.put("user", entry.getUser());
+            result.add(e);
+        }
+
+        writeJsonResponse(rsp, 200, result.toString());
     }
 
     private JSONObject statusToJson(ClusterStatus status) {

@@ -123,6 +123,21 @@
             <artifactId>structs</artifactId>
         </dependency>
 
+        <!-- Pipeline Support -->
+        <dependency>
+            <groupId>org.jenkins-ci.plugins.workflow</groupId>
+            <artifactId>workflow-step-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jenkins-ci.plugins.workflow</groupId>
+            <artifactId>workflow-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jenkins-ci.plugins.workflow</groupId>
+            <artifactId>workflow-cps</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Configuration as Code -->
         <dependency>
             <groupId>io.jenkins</groupId>

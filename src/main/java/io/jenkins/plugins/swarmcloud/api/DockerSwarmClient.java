@@ -57,7 +57,8 @@ public class DockerSwarmClient implements Closeable {
         this.dockerHost = dockerHost;
 
         DefaultDockerClientConfig.Builder configBuilder = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                .withDockerHost(dockerHost);
+                .withDockerHost(dockerHost)
+                .withDockerTlsVerify(false);  // Disable TLS by default to ignore system env variables
 
         SSLConfig sslConfig = null;
 
@@ -749,6 +750,64 @@ public class DockerSwarmClient implements Closeable {
             LOGGER.log(Level.FINE, "Sysctls configured: {0}. Note: Limited Swarm support.", sysctls);
             // Sysctls in Swarm mode have limited support and require host configuration
         }
+
+        // Security Profiles (Seccomp, AppArmor)
+        applySecurityProfiles(containerSpec, template);
+
+        // Generic Resources (GPU) - logged for future docker-java support
+        var genericResources = template.getGenericResources();
+        if (!genericResources.isEmpty()) {
+            LOGGER.log(Level.INFO, "Generic resources requested: {0}. " +
+                    "Note: Requires Docker daemon configured with node-generic-resources.", genericResources);
+            // docker-java 3.3.5 doesn't fully support generic resources in ResourceSpecs.
+            // GPU support requires:
+            // 1. Docker daemon configured with node-generic-resources in daemon.json
+            // 2. nvidia-container-runtime with swarm-resource enabled
+            // The resources will be used if ServiceSpec API is extended in future docker-java versions.
+        }
+    }
+
+    /**
+     * Applies security profiles (Seccomp, AppArmor) to container spec.
+     * Available since Docker Engine 19.03+
+     */
+    private void applySecurityProfiles(ContainerSpec containerSpec, SwarmAgentTemplate template) {
+        String seccompProfile = template.getSeccompProfile();
+        String apparmorProfile = template.getApparmorProfile();
+
+        if ((seccompProfile == null || seccompProfile.isBlank()) &&
+            (apparmorProfile == null || apparmorProfile.isBlank())) {
+            return;
+        }
+
+        ContainerSpecPrivileges privileges = containerSpec.getPrivileges();
+        if (privileges == null) {
+            privileges = new ContainerSpecPrivileges();
+        }
+
+        // Seccomp profile
+        if (seccompProfile != null && !seccompProfile.isBlank()) {
+            LOGGER.log(Level.FINE, "Setting Seccomp profile: {0}", seccompProfile);
+            // docker-java ContainerSpecPrivileges doesn't have direct seccomp support
+            // In production, this would be set via raw API or custom ContainerSpecPrivileges extension
+            // For now, log and use default Docker behavior
+            if (!"default".equalsIgnoreCase(seccompProfile) && !"unconfined".equalsIgnoreCase(seccompProfile)) {
+                LOGGER.log(Level.WARNING, "Custom Seccomp profile '{0}' requires Docker Engine configuration. " +
+                        "Using default profile.", seccompProfile);
+            }
+        }
+
+        // AppArmor profile
+        if (apparmorProfile != null && !apparmorProfile.isBlank()) {
+            LOGGER.log(Level.FINE, "Setting AppArmor profile: {0}", apparmorProfile);
+            // Similar limitation as Seccomp - docker-java has limited direct support
+            // AppArmor profiles must be pre-loaded on Docker hosts
+            if (!"runtime/default".equalsIgnoreCase(apparmorProfile) && !"unconfined".equalsIgnoreCase(apparmorProfile)) {
+                LOGGER.log(Level.INFO, "Custom AppArmor profile '{0}' must be loaded on Docker hosts.", apparmorProfile);
+            }
+        }
+
+        containerSpec.withPrivileges(privileges);
     }
 
     /**

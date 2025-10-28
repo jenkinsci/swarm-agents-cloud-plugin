@@ -38,6 +38,11 @@
         <f:textbox/>
     </f:entry>
 
+    <f:entry title="Inherit From" field="inheritFrom"
+             description="Name of parent template to inherit settings from (like K8s podTemplate)">
+        <f:textbox/>
+    </f:entry>
+
     <f:advanced>
         <f:section title="Resource Constraints">
             <f:entry title="CPU Limit" field="cpuLimit"
@@ -58,6 +63,45 @@
             <f:entry title="Memory Reservation" field="memoryReservation"
                      description="Memory reservation (guaranteed)">
                 <f:textbox/>
+            </f:entry>
+
+            <f:entry title="Generic Resources (GPU)" field="genericResourcesString"
+                     description="GPU and other resources (comma-separated, e.g., NVIDIA-GPU=1, FPGA=2)">
+                <f:textbox/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Security Profiles">
+            <f:entry title="Seccomp Profile" field="seccompProfile"
+                     description="Seccomp profile: 'default', 'unconfined', or path to custom profile">
+                <f:textbox/>
+            </f:entry>
+
+            <f:entry title="AppArmor Profile" field="apparmorProfile"
+                     description="AppArmor profile: 'runtime/default', 'unconfined', or custom profile name">
+                <f:textbox/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Timeouts and Retry">
+            <f:entry title="Connection Timeout (seconds)" field="connectionTimeoutSeconds"
+                     description="Max time to wait for agent to connect">
+                <f:number default="300" min="30" max="3600"/>
+            </f:entry>
+
+            <f:entry title="Idle Timeout (minutes)" field="idleTimeoutMinutes"
+                     description="Idle time before agent termination">
+                <f:number default="30" min="1" max="1440"/>
+            </f:entry>
+
+            <f:entry title="Provision Retry Count" field="provisionRetryCount"
+                     description="Number of retries on provisioning failure">
+                <f:number default="3" min="0" max="10"/>
+            </f:entry>
+
+            <f:entry title="Retry Delay (ms)" field="provisionRetryDelayMs"
+                     description="Initial delay between retries (with exponential backoff)">
+                <f:number default="1000" min="100" max="60000"/>
             </f:entry>
         </f:section>
 
