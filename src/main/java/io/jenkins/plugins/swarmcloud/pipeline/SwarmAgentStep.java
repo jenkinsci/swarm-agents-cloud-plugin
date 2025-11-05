@@ -19,6 +19,7 @@ import org.jenkinsci.plugins.workflow.steps.StepExecution;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.util.HashSet;
@@ -349,8 +350,8 @@ public class SwarmAgentStep extends Step implements Serializable {
                     listener.getLogger().println("Swarm agent pipeline step failed: " + t.getMessage());
                 }
                 terminateAgent();
-            } catch (Exception e) {
-                // Ignore cleanup errors
+            } catch (IOException | InterruptedException e) {
+                LOGGER.log(Level.FINE, "Cleanup error during onFailure", e);
             }
             context.onFailure(t);
         }

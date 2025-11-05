@@ -9,7 +9,7 @@ jenkins:
         templates:
           - name: "dev-agent"
             image: "jenkins/inbound-agent:latest"
-            labelString: "dev development"
+            label: "dev development"
             numExecutors: 1
             maxInstances: 5
 
@@ -22,7 +22,7 @@ jenkins:
         templates:
           - name: "staging-agent"
             image: "jenkins/inbound-agent:latest"
-            labelString: "staging test"
+            label: "staging test"
             numExecutors: 2
             maxInstances: 10
 
@@ -36,7 +36,7 @@ jenkins:
         templates:
           - name: "prod-builder"
             image: "myregistry/jenkins-agent:latest"
-            labelString: "production build"
+            label: "production build"
             numExecutors: 2
             maxInstances: 50
             cpuLimit: "2.0"

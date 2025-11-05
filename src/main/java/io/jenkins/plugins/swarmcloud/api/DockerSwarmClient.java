@@ -15,9 +15,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
 import io.jenkins.plugins.swarmcloud.SwarmComputerLauncher;
+import io.jenkins.plugins.swarmcloud.SwarmConfigFile;
 import io.jenkins.plugins.swarmcloud.SwarmSecretConfig;
 import io.jenkins.plugins.swarmcloud.config.DockerCredentialsHelper;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerServerCredentials;
+
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
+import org.bouncycastle.openssl.PEMKeyPair;
+import org.bouncycastle.openssl.PEMParser;
+import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -25,6 +31,7 @@ import javax.net.ssl.TrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.KeyStore;
@@ -69,7 +76,9 @@ public class DockerSwarmClient implements Closeable {
                 LOGGER.log(Level.INFO, "Configuring TLS with credentials: {0}", credentialsId);
                 try {
                     sslConfig = createSslConfig(credentials);
-                    configBuilder.withDockerTlsVerify(true);
+                    // Note: We don't set withDockerTlsVerify(true) here because that would
+                    // trigger DefaultDockerClientConfig to look for DOCKER_CERT_PATH env variable.
+                    // Instead, we apply our custom SSLConfig directly to the HTTP client.
                 } catch (Exception e) {
                     LOGGER.log(Level.WARNING, "Failed to configure TLS, falling back to insecure connection", e);
                 }
@@ -157,20 +166,29 @@ public class DockerSwarmClient implements Closeable {
     }
 
     /**
-     * Loads a private key from PEM format.
+     * Loads a private key from PEM format using BouncyCastle.
+     * Supports PKCS#8 (BEGIN PRIVATE KEY), PKCS#1 (BEGIN RSA PRIVATE KEY),
+     * and EC (BEGIN EC PRIVATE KEY) formats.
      */
     private PrivateKey loadPrivateKey(String pemKey) throws Exception {
-        String keyContent = pemKey
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replace("-----BEGIN RSA PRIVATE KEY-----", "")
-                .replace("-----END RSA PRIVATE KEY-----", "")
-                .replaceAll("\\s", "");
+        try (PEMParser pemParser = new PEMParser(new StringReader(pemKey))) {
+            Object object = pemParser.readObject();
 
-        byte[] keyBytes = Base64.getDecoder().decode(keyContent);
-        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        return keyFactory.generatePrivate(keySpec);
+            JcaPEMKeyConverter converter = new JcaPEMKeyConverter();
+
+            if (object instanceof PEMKeyPair) {
+                // PKCS#1 format (BEGIN RSA PRIVATE KEY)
+                PEMKeyPair keyPair = (PEMKeyPair) object;
+                return converter.getPrivateKey(keyPair.getPrivateKeyInfo());
+            } else if (object instanceof PrivateKeyInfo) {
+                // PKCS#8 format (BEGIN PRIVATE KEY)
+                return converter.getPrivateKey((PrivateKeyInfo) object);
+            } else {
+                throw new IllegalArgumentException(
+                        "Unsupported key format. Expected PEM private key, got: " +
+                                (object != null ? object.getClass().getName() : "null"));
+            }
+        }
     }
 
     @NonNull
@@ -252,6 +270,12 @@ public class DockerSwarmClient implements Closeable {
             containerSpec.withSecrets(secretRefs);
         }
 
+        // Add configs if configured
+        List<ContainerSpecConfig> configRefs = buildConfigReferences(template);
+        if (!configRefs.isEmpty()) {
+            containerSpec.withConfigs(configRefs);
+        }
+
         // Add advanced container options (#120)
         applyAdvancedContainerOptions(containerSpec, template);
 
@@ -304,6 +328,29 @@ public class DockerSwarmClient implements Closeable {
             }
 
             serviceSpec.withNetworks(List.of(networkConfig));
+        }
+
+        // Add port bindings
+        List<SwarmAgentTemplate.PortBinding> portBindings = template.getPortBindings();
+        if (!portBindings.isEmpty()) {
+            List<PortConfig> ports = new ArrayList<>();
+            for (SwarmAgentTemplate.PortBinding binding : portBindings) {
+                PortConfig portConfig = new PortConfig()
+                        .withTargetPort(binding.getTargetPort())
+                        .withProtocol(PortConfigProtocol.valueOf(binding.getProtocol().toUpperCase()))
+                        .withPublishMode(PortConfig.PublishMode.ingress);
+
+                if (binding.getPublishedPort() > 0) {
+                    portConfig.withPublishedPort(binding.getPublishedPort());
+                }
+                ports.add(portConfig);
+            }
+
+            EndpointSpec endpointSpec = new EndpointSpec().withPorts(ports);
+            serviceSpec.withEndpointSpec(endpointSpec);
+
+            LOGGER.log(Level.INFO, "Configured {0} port binding(s) for service {1}",
+                    new Object[]{ports.size(), agentName});
         }
 
         // Create the service
@@ -371,7 +418,7 @@ public class DockerSwarmClient implements Closeable {
                     .exec(new LogContainerResultCallback() {
                         @Override
                         public void onNext(Frame frame) {
-                            logs.append(new String(frame.getPayload()));
+                            logs.append(new String(frame.getPayload(), StandardCharsets.UTF_8));
                         }
                     })
                     .awaitCompletion(10, TimeUnit.SECONDS);
@@ -461,20 +508,22 @@ public class DockerSwarmClient implements Closeable {
             double totalCpu = 0;
 
             for (SwarmNode node : nodes) {
-                if (node.getStatus() != null &&
-                        node.getStatus().getState() == SwarmNodeState.READY) {
+                SwarmNodeStatus status = node.getStatus();
+                if (status != null && SwarmNodeState.READY.equals(status.getState())) {
                     readyNodes++;
                 }
 
                 // Get node resources
                 SwarmNodeDescription desc = node.getDescription();
-                if (desc != null && desc.getResources() != null) {
-                    SwarmNodeResources resources = desc.getResources();
-                    if (resources.getMemoryBytes() != null) {
-                        totalMemory += resources.getMemoryBytes();
+                SwarmNodeResources resources = (desc != null) ? desc.getResources() : null;
+                if (resources != null) {
+                    Long memoryBytes = resources.getMemoryBytes();
+                    Long nanoCPUs = resources.getNanoCPUs();
+                    if (memoryBytes != null) {
+                        totalMemory += memoryBytes;
                     }
-                    if (resources.getNanoCPUs() != null) {
-                        totalCpu += resources.getNanoCPUs() / 1_000_000_000.0;
+                    if (nanoCPUs != null) {
+                        totalCpu += nanoCPUs / 1_000_000_000.0;
                     }
                 }
             }
@@ -525,6 +574,8 @@ public class DockerSwarmClient implements Closeable {
      */
     private List<Mount> buildMounts(SwarmAgentTemplate template) {
         List<Mount> mounts = new ArrayList<>();
+
+        // Add configured mounts (bind, volume, tmpfs)
         for (SwarmAgentTemplate.MountConfig config : template.getMounts()) {
             Mount mount = new Mount()
                     .withTarget(config.getTarget())
@@ -549,6 +600,19 @@ public class DockerSwarmClient implements Closeable {
             }
             mounts.add(mount);
         }
+
+        // Add cache directories as tmpfs mounts (for build caching)
+        for (String cacheDir : template.getCacheDirs()) {
+            if (cacheDir != null && !cacheDir.isBlank() && cacheDir.startsWith("/")) {
+                Mount cacheMount = new Mount()
+                        .withType(MountType.TMPFS)
+                        .withTarget(cacheDir.trim())
+                        .withReadOnly(false);
+                mounts.add(cacheMount);
+                LOGGER.log(Level.FINE, "Added cache directory as tmpfs: {0}", cacheDir);
+            }
+        }
+
         return mounts;
     }
 
@@ -650,6 +714,91 @@ public class DockerSwarmClient implements Closeable {
         return null;
     }
 
+    /**
+     * Builds config references from template configuration.
+     */
+    @NonNull
+    private List<ContainerSpecConfig> buildConfigReferences(SwarmAgentTemplate template) {
+        List<ContainerSpecConfig> refs = new ArrayList<>();
+
+        for (SwarmConfigFile configFile : template.getConfigs()) {
+            try {
+                String configId = findConfigId(configFile.getConfigName());
+                if (configId == null) {
+                    LOGGER.log(Level.WARNING, "Config not found: {0}", configFile.getConfigName());
+                    continue;
+                }
+
+                ContainerSpecConfig ref = new ContainerSpecConfig()
+                        .withConfigID(configId)
+                        .withConfigName(configFile.getConfigName())
+                        .withFile(new ContainerSpecFile()
+                                .withName(configFile.getEffectiveTargetPath())
+                                .withUid(configFile.getUid() != null ? configFile.getUid() : "0")
+                                .withGid(configFile.getGid() != null ? configFile.getGid() : "0")
+                                .withMode(configFile.getFileModeAsLong() != null ?
+                                        configFile.getFileModeAsLong() : 0444L));
+
+                refs.add(ref);
+                LOGGER.log(Level.FINE, "Added config: {0} -> {1}",
+                        new Object[]{configFile.getConfigName(), configFile.getEffectiveTargetPath()});
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Failed to configure config: " + configFile.getConfigName(), e);
+            }
+        }
+
+        return refs;
+    }
+
+    @Nullable
+    private String findConfigId(String configName) {
+        try {
+            Map<String, List<String>> filters = new HashMap<>();
+            filters.put("name", List.of(configName));
+
+            List<Config> configs = dockerClient.listConfigsCmd()
+                    .withFilters(filters)
+                    .exec();
+
+            // Find exact match by name
+            for (Config config : configs) {
+                if (configName.equals(config.getSpec().getName())) {
+                    return config.getId();
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to find config: " + configName, e);
+        }
+        return null;
+    }
+
+    @NonNull
+    public String createConfig(@NonNull String name, @NonNull byte[] data) {
+        return dockerClient.createConfigCmd()
+                .withName(name)
+                .withData(data)
+                .exec()
+                .getId();
+    }
+
+    public void deleteConfig(@NonNull String configId) {
+        try {
+            dockerClient.removeConfigCmd(configId).exec();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to delete config: " + configId, e);
+        }
+    }
+
+    @NonNull
+    public List<Config> listConfigs() {
+        try {
+            return dockerClient.listConfigsCmd().exec();
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to list configs", e);
+            return List.of();
+        }
+    }
+
     @NonNull
     public String createSecret(@NonNull String name, @NonNull byte[] data) {
         SecretSpec spec = new SecretSpec()
@@ -680,20 +829,16 @@ public class DockerSwarmClient implements Closeable {
      * Applies advanced container options to the container spec (#120).
      */
     private void applyAdvancedContainerOptions(ContainerSpec containerSpec, SwarmAgentTemplate template) {
-        // Capabilities
+        // Capabilities - log requested capabilities for debugging
+        // Note: Docker Swarm mode has limited support for capabilities compared to standalone Docker
+        // Capabilities are typically managed through privileged mode or seccomp/apparmor profiles
         List<String> capAdd = template.getCapAdd();
         List<String> capDrop = template.getCapDrop();
-        if (!capAdd.isEmpty() || !capDrop.isEmpty()) {
-            ContainerSpecPrivileges privileges = new ContainerSpecPrivileges();
-            // Note: docker-java uses different approach for capabilities
-            // They are set via SELinuxContext or credential spec
-            // For Swarm mode, capabilities are limited - using privileged as workaround
-            if (!capAdd.isEmpty()) {
-                LOGGER.log(Level.FINE, "Adding capabilities: {0}", capAdd);
-            }
-            if (!capDrop.isEmpty()) {
-                LOGGER.log(Level.FINE, "Dropping capabilities: {0}", capDrop);
-            }
+        if (!capAdd.isEmpty()) {
+            LOGGER.log(Level.FINE, "Requested capabilities to add (limited support in Swarm): {0}", capAdd);
+        }
+        if (!capDrop.isEmpty()) {
+            LOGGER.log(Level.FINE, "Requested capabilities to drop (limited support in Swarm): {0}", capDrop);
         }
 
         // Privileged mode

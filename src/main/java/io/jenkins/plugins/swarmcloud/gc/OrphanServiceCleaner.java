@@ -86,11 +86,17 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
         int cleaned = 0;
 
         try {
+            var dockerClient = cloud.getDockerClient();
+            if (dockerClient == null) {
+                listener.error("Docker client not available for cloud: " + cloud.name);
+                return 0;
+            }
+
             // Get all known agent names from Jenkins
             Set<String> knownAgentNames = getKnownAgentNames(jenkins, cloud.name);
 
             // Get all services from Docker Swarm
-            List<Service> services = cloud.getDockerClient().listServicesForCloud(cloud.name);
+            List<Service> services = dockerClient.listServicesForCloud(cloud.name);
 
             listener.getLogger().println("Found " + services.size() + " services for cloud: " + cloud.name);
             LOGGER.log(Level.FINE, "Found {0} services for cloud: {1}",
@@ -99,8 +105,12 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
             long now = System.currentTimeMillis();
 
             for (Service service : services) {
-                String serviceName = service.getSpec().getName();
-                Map<String, String> labels = service.getSpec().getLabels();
+                var serviceSpec = service.getSpec();
+                if (serviceSpec == null) {
+                    continue;
+                }
+                String serviceName = serviceSpec.getName();
+                Map<String, String> labels = serviceSpec.getLabels();
 
                 if (labels == null) {
                     continue;
@@ -145,7 +155,7 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
                     LOGGER.log(Level.INFO, "Removing {0} service: {1}", new Object[]{reason, serviceName});
 
                     try {
-                        cloud.getDockerClient().removeService(service.getId());
+                        dockerClient.removeService(service.getId());
                         cleaned++;
                     } catch (Exception e) {
                         LOGGER.log(Level.WARNING, "Failed to remove orphan service: " + serviceName, e);

@@ -10,7 +10,7 @@
         <f:textbox default="jenkins/inbound-agent:latest"/>
     </f:entry>
 
-    <f:entry title="Labels" field="labelString"
+    <f:entry title="Label" field="label"
              description="Space-separated list of labels for this agent template">
         <f:textbox/>
     </f:entry>
@@ -19,7 +19,7 @@
         <f:enum>${it.description}</f:enum>
     </f:entry>
 
-    <f:entry title="Remote FS Root" field="remoteFs"
+    <f:entry title="Working Dir" field="workingDir"
              description="Agent working directory inside the container">
         <f:textbox default="/home/jenkins/agent"/>
     </f:entry>
@@ -127,21 +127,35 @@
             </f:entry>
         </f:section>
 
-        <f:section title="Mounts">
-            <f:entry title="Mounts">
-                <f:repeatableProperty field="mounts" add="Add Mount"/>
+        <f:section title="Host Binds">
+            <f:entry title="Host Binds">
+                <f:repeatableProperty field="hostBinds" add="Add Bind"/>
             </f:entry>
         </f:section>
 
         <f:section title="Environment Variables">
             <f:entry title="Environment Variables">
-                <f:repeatableProperty field="environmentVariables" add="Add Variable"/>
+                <f:repeatableProperty field="envVars" add="Add Variable"/>
             </f:entry>
         </f:section>
 
         <f:section title="Docker Secrets">
             <f:entry title="Secrets">
                 <f:repeatableProperty field="secrets" add="Add Secret"/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Docker Configs">
+            <f:entry title="Configs (newline-separated)" field="configsString"
+                     description="Docker Swarm configs to mount. Format: configName:targetPath (one per line). Example: nethasp.ini:/opt/1cv8/current/conf/nethasp.ini">
+                <f:textarea/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Cache Directories">
+            <f:entry title="Cache Dirs (newline-separated)" field="cacheDirsString"
+                     description="Directories to mount as tmpfs for caching (one per line). Example: /cache">
+                <f:textarea/>
             </f:entry>
         </f:section>
 
@@ -154,6 +168,13 @@
             <f:entry title="Network Aliases" field="networkAliasesString"
                      description="Comma-separated network aliases">
                 <f:textbox/>
+            </f:entry>
+        </f:section>
+
+        <f:section title="Networking">
+            <f:entry title="Port Binds" field="portBinds"
+                     description="Published ports (newline-separated). Format: [hostPort:]containerPort[/protocol]. Examples: 80:8080, :5900, 443:8443/tcp">
+                <f:textarea/>
             </f:entry>
         </f:section>
 
@@ -188,7 +209,7 @@
                 <f:textarea/>
             </f:entry>
 
-            <f:entry title="DNS Servers" field="dnsServersString"
+            <f:entry title="DNS IPs" field="dnsIps"
                      description="Custom DNS servers (comma-separated IP addresses)">
                 <f:textbox/>
             </f:entry>

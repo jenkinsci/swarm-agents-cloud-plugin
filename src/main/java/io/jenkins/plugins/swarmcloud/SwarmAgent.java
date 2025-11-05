@@ -25,6 +25,7 @@ import java.util.logging.Logger;
  */
 public class SwarmAgent extends AbstractCloudSlave {
 
+    private static final long serialVersionUID = 1L;
     private static final Logger LOGGER = Logger.getLogger(SwarmAgent.class.getName());
     private static final int DEFAULT_IDLE_MINUTES = 10;
 

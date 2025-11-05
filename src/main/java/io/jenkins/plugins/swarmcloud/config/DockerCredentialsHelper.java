@@ -141,6 +141,7 @@ public class DockerCredentialsHelper {
         if (credentials == null) {
             return null;
         }
-        return credentials.getClientKeySecret().getPlainText();
+        var secret = credentials.getClientKeySecret();
+        return secret != null ? secret.getPlainText() : null;
     }
 }

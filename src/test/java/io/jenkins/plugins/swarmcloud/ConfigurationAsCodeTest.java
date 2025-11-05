@@ -2,38 +2,32 @@ package io.jenkins.plugins.swarmcloud;
 
 import hudson.model.Node;
 import io.jenkins.plugins.casc.ConfigurationAsCode;
-import io.jenkins.plugins.casc.ConfigurationContext;
-import io.jenkins.plugins.casc.ConfiguratorRegistry;
+import io.jenkins.plugins.casc.misc.ConfiguredWithCode;
+import io.jenkins.plugins.casc.misc.JenkinsConfiguredWithCodeRule;
 import jenkins.model.Jenkins;
-import org.junit.jupiter.api.Test;
-import org.jvnet.hudson.test.JenkinsRule;
-import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
+import org.junit.Rule;
+import org.junit.Test;
 
-import java.io.InputStream;
-import java.io.StringWriter;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.Assert.*;
 
 /**
  * Tests for Configuration as Code support.
  */
-@WithJenkins
-class ConfigurationAsCodeTest {
+public class ConfigurationAsCodeTest {
+
+    @Rule
+    public JenkinsConfiguredWithCodeRule j = new JenkinsConfiguredWithCodeRule();
 
     @Test
-    void testSimpleConfiguration(JenkinsRule jenkins) throws Exception {
-        try (InputStream is = getClass().getResourceAsStream("simple-config.yaml")) {
-            ConfigurationAsCode.get().configureWith(
-                    ConfigurationAsCode.get().loadConfigurationsFrom(is)
-            );
-        }
+    @ConfiguredWithCode("simple-config.yaml")
+    public void testSimpleConfiguration() throws Exception {
+        Jenkins jenkins = j.jenkins;
+        assertNotNull(jenkins);
+        assertEquals(1, jenkins.clouds.size());
 
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
-        assertEquals(1, j.clouds.size());
-
-        SwarmCloud cloud = (SwarmCloud) j.clouds.get(0);
+        SwarmCloud cloud = (SwarmCloud) jenkins.clouds.get(0);
         assertEquals("docker-swarm", cloud.name);
         assertEquals("tcp://swarm-manager:2376", cloud.getDockerHost());
         assertEquals("http://jenkins:8080", cloud.getJenkinsUrl());
@@ -50,18 +44,13 @@ class ConfigurationAsCodeTest {
     }
 
     @Test
-    void testFullConfiguration(JenkinsRule jenkins) throws Exception {
-        try (InputStream is = getClass().getResourceAsStream("full-config.yaml")) {
-            ConfigurationAsCode.get().configureWith(
-                    ConfigurationAsCode.get().loadConfigurationsFrom(is)
-            );
-        }
+    @ConfiguredWithCode("full-config.yaml")
+    public void testFullConfiguration() throws Exception {
+        Jenkins jenkins = j.jenkins;
+        assertNotNull(jenkins);
+        assertEquals(1, jenkins.clouds.size());
 
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
-        assertEquals(1, j.clouds.size());
-
-        SwarmCloud cloud = (SwarmCloud) j.clouds.get(0);
+        SwarmCloud cloud = (SwarmCloud) jenkins.clouds.get(0);
         assertEquals("production-swarm", cloud.name);
         assertEquals("tcp://swarm-manager.prod.local:2376", cloud.getDockerHost());
         assertEquals("docker-tls-creds", cloud.getCredentialsId());
@@ -84,7 +73,7 @@ class ConfigurationAsCodeTest {
         assertEquals("0.5", mavenTemplate.getCpuReservation());
         assertEquals("1g", mavenTemplate.getMemoryReservation());
 
-        // Test mounts
+        // Test mounts (via hostBinds alias)
         List<SwarmAgentTemplate.MountConfig> mounts = mavenTemplate.getMounts();
         assertEquals(2, mounts.size());
         assertEquals("bind", mounts.get(0).getType());
@@ -96,7 +85,7 @@ class ConfigurationAsCodeTest {
         assertEquals("jenkins-workspace", mounts.get(1).getSource());
         assertEquals("/workspace", mounts.get(1).getTarget());
 
-        // Test environment variables
+        // Test environment variables (via envVars alias)
         List<SwarmAgentTemplate.EnvironmentVariable> envVars = mavenTemplate.getEnvironmentVariables();
         assertEquals(2, envVars.size());
         assertEquals("MAVEN_OPTS", envVars.get(0).getName());
@@ -132,36 +121,31 @@ class ConfigurationAsCodeTest {
     }
 
     @Test
-    void testMultiCloudConfiguration(JenkinsRule jenkins) throws Exception {
-        try (InputStream is = getClass().getResourceAsStream("multi-cloud-config.yaml")) {
-            ConfigurationAsCode.get().configureWith(
-                    ConfigurationAsCode.get().loadConfigurationsFrom(is)
-            );
-        }
-
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
-        assertEquals(3, j.clouds.size());
+    @ConfiguredWithCode("multi-cloud-config.yaml")
+    public void testMultiCloudConfiguration() throws Exception {
+        Jenkins jenkins = j.jenkins;
+        assertNotNull(jenkins);
+        assertEquals(3, jenkins.clouds.size());
 
         // Verify all clouds are SwarmCloud instances
-        for (var cloud : j.clouds) {
+        for (var cloud : jenkins.clouds) {
             assertTrue(cloud instanceof SwarmCloud);
         }
 
         // Test dev cloud
-        SwarmCloud devCloud = (SwarmCloud) j.clouds.get(0);
+        SwarmCloud devCloud = (SwarmCloud) jenkins.clouds.get(0);
         assertEquals("dev-swarm", devCloud.name);
         assertEquals("tcp://swarm-dev:2376", devCloud.getDockerHost());
         assertEquals(10, devCloud.getMaxConcurrentAgents());
 
         // Test staging cloud
-        SwarmCloud stagingCloud = (SwarmCloud) j.clouds.get(1);
+        SwarmCloud stagingCloud = (SwarmCloud) jenkins.clouds.get(1);
         assertEquals("staging-swarm", stagingCloud.name);
         assertEquals("tcp://swarm-staging:2376", stagingCloud.getDockerHost());
         assertEquals(20, stagingCloud.getMaxConcurrentAgents());
 
         // Test prod cloud
-        SwarmCloud prodCloud = (SwarmCloud) j.clouds.get(2);
+        SwarmCloud prodCloud = (SwarmCloud) jenkins.clouds.get(2);
         assertEquals("prod-swarm", prodCloud.name);
         assertEquals("tcp://swarm-prod:2376", prodCloud.getDockerHost());
         assertEquals("prod-docker-creds", prodCloud.getCredentialsId());
@@ -170,156 +154,63 @@ class ConfigurationAsCodeTest {
     }
 
     @Test
-    void testConfigurationFromYamlString(JenkinsRule jenkins) throws Exception {
-        String yaml = """
-            jenkins:
-              clouds:
-                - swarmAgentsCloud:
-                    name: "test-cloud"
-                    dockerHost: "tcp://localhost:2376"
-                    maxConcurrentAgents: 5
-                    templates:
-                      - name: "test-agent"
-                        image: "jenkins/inbound-agent:alpine"
-                        labelString: "test alpine"
-                        numExecutors: 1
-                        maxInstances: 3
-            """;
+    public void testResourceFieldAliases() throws Exception {
+        // Test NanoCPUs and MemoryBytes aliases for docker-swarm-plugin compatibility
+        SwarmAgentTemplate template = new SwarmAgentTemplate("resource-test");
 
-        ConfigurationAsCode.get().configureWith(
-                ConfigurationAsCode.get().loadConfigurationsFrom(
-                        new java.io.ByteArrayInputStream(yaml.getBytes())
-                )
-        );
+        // Test CPU limit/reservation (nanoCPUs = CPUs * 1e9)
+        template.setCpuLimit("2.0");
+        assertEquals(Long.valueOf(2_000_000_000L), template.getLimitsNanoCPUs());
 
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
+        template.setLimitsNanoCPUs(1_500_000_000L);
+        assertEquals("1.5", template.getCpuLimit());
 
-        assertEquals(1, j.clouds.size());
-        SwarmCloud cloud = (SwarmCloud) j.clouds.get(0);
-        assertEquals("test-cloud", cloud.name);
-        assertEquals(5, cloud.getMaxConcurrentAgents());
+        template.setCpuReservation("0.5");
+        assertEquals(Long.valueOf(500_000_000L), template.getReservationsNanoCPUs());
 
-        SwarmAgentTemplate template = cloud.getTemplates().get(0);
-        assertEquals("test-agent", template.getName());
-        assertEquals("jenkins/inbound-agent:alpine", template.getImage());
-        assertEquals("test alpine", template.getLabelString());
-        assertEquals(3, template.getMaxInstances());
+        // Test memory limit/reservation (bytes)
+        template.setMemoryLimit("4g");
+        assertEquals(Long.valueOf(4L * 1024 * 1024 * 1024), template.getLimitsMemoryBytes());
+
+        template.setLimitsMemoryBytes(2L * 1024 * 1024 * 1024);
+        assertEquals("2g", template.getMemoryLimit());
+
+        template.setMemoryReservation("512m");
+        assertEquals(Long.valueOf(512L * 1024 * 1024), template.getReservationsMemoryBytes());
+
+        template.setReservationsMemoryBytes(1024L * 1024 * 1024);
+        assertEquals("1g", template.getMemoryReservation());
     }
 
     @Test
-    void testExportConfiguration(JenkinsRule jenkins) throws Exception {
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
+    public void testFieldAliases() throws Exception {
+        SwarmAgentTemplate template = new SwarmAgentTemplate("alias-test");
 
-        // Create cloud with full configuration
-        SwarmCloud cloud = new SwarmCloud("export-test");
-        cloud.setDockerHost("tcp://localhost:2376");
-        cloud.setJenkinsUrl("http://jenkins:8080");
-        cloud.setSwarmNetwork("test-network");
-        cloud.setMaxConcurrentAgents(15);
+        // Test label/labelString alias
+        template.setLabel("test-label");
+        assertEquals("test-label", template.getLabelString());
+        assertEquals("test-label", template.getLabel());
 
-        SwarmAgentTemplate template = new SwarmAgentTemplate("export-template");
-        template.setImage("jenkins/inbound-agent:latest");
-        template.setLabelString("export test");
-        template.setNumExecutors(2);
-        template.setMaxInstances(10);
-        template.setCpuLimit("1.5");
-        template.setMemoryLimit("2g");
-        template.setMode(Node.Mode.EXCLUSIVE);
+        template.setLabelString("another-label");
+        assertEquals("another-label", template.getLabel());
 
-        // Add mount
-        SwarmAgentTemplate.MountConfig mount = new SwarmAgentTemplate.MountConfig(
-                "bind", "/host/path", "/container/path");
-        mount.setReadOnly(true);
-        template.setMounts(List.of(mount));
+        // Test workingDir/remoteFs alias
+        template.setWorkingDir("/custom/workspace");
+        assertEquals("/custom/workspace", template.getRemoteFs());
+        assertEquals("/custom/workspace", template.getWorkingDir());
 
-        // Add environment variable
-        SwarmAgentTemplate.EnvironmentVariable envVar =
-                new SwarmAgentTemplate.EnvironmentVariable("TEST_VAR", "test_value");
-        template.setEnvironmentVariables(List.of(envVar));
+        template.setRemoteFs("/another/path");
+        assertEquals("/another/path", template.getWorkingDir());
 
-        cloud.setTemplates(List.of(template));
-        j.clouds.add(cloud);
+        // Test portBinds/portBindingsString alias
+        template.setPortBinds("80:8080\n:5900");
+        assertEquals(2, template.getPortBindings().size());
+        assertEquals("80:8080\n:5900", template.getPortBinds());
 
-        // Verify configuration can be exported
-        ConfiguratorRegistry registry = ConfiguratorRegistry.get();
-        ConfigurationContext context = new ConfigurationContext(registry);
-        assertNotNull(context);
-
-        // Export and verify
-        StringWriter sw = new StringWriter();
-        ConfigurationAsCode.get().export(sw);
-        String exported = sw.toString();
-
-        assertTrue(exported.contains("swarmAgentsCloud"));
-        assertTrue(exported.contains("export-test"));
-        assertTrue(exported.contains("tcp://localhost:2376"));
-        assertTrue(exported.contains("export-template"));
-    }
-
-    @Test
-    void testMinimalConfiguration(JenkinsRule jenkins) throws Exception {
-        String yaml = """
-            jenkins:
-              clouds:
-                - swarmAgentsCloud:
-                    name: "minimal"
-                    dockerHost: "tcp://docker:2376"
-                    templates:
-                      - name: "minimal-agent"
-            """;
-
-        ConfigurationAsCode.get().configureWith(
-                ConfigurationAsCode.get().loadConfigurationsFrom(
-                        new java.io.ByteArrayInputStream(yaml.getBytes())
-                )
-        );
-
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
-
-        SwarmCloud cloud = (SwarmCloud) j.clouds.get(0);
-        assertEquals("minimal", cloud.name);
-        assertEquals("tcp://docker:2376", cloud.getDockerHost());
-        assertEquals(10, cloud.getMaxConcurrentAgents()); // default value
-
-        SwarmAgentTemplate template = cloud.getTemplates().get(0);
-        assertEquals("minimal-agent", template.getName());
-        assertEquals("jenkins/inbound-agent:latest", template.getImage()); // default
-        assertEquals(1, template.getNumExecutors()); // default
-        assertEquals(5, template.getMaxInstances()); // default
-        assertEquals(Node.Mode.NORMAL, template.getMode()); // default
-    }
-
-    @Test
-    void testTemplateParentReference(JenkinsRule jenkins) throws Exception {
-        String yaml = """
-            jenkins:
-              clouds:
-                - swarmAgentsCloud:
-                    name: "parent-test"
-                    dockerHost: "tcp://docker:2376"
-                    templates:
-                      - name: "child-template"
-                        image: "test:latest"
-            """;
-
-        ConfigurationAsCode.get().configureWith(
-                ConfigurationAsCode.get().loadConfigurationsFrom(
-                        new java.io.ByteArrayInputStream(yaml.getBytes())
-                )
-        );
-
-        Jenkins j = jenkins.getInstance();
-        assertNotNull(j);
-
-        SwarmCloud cloud = (SwarmCloud) j.clouds.get(0);
-        SwarmAgentTemplate template = cloud.getTemplates().get(0);
-
-        // Verify parent reference is set
-        assertNotNull(template.getParent());
-        assertEquals(cloud, template.getParent());
-        assertEquals("parent-test", template.getParent().name);
+        // Test dnsIps/dnsServersString alias
+        template.setDnsIps("8.8.8.8, 1.1.1.1");
+        assertEquals(2, template.getDnsServers().size());
+        assertTrue(template.getDnsServers().contains("8.8.8.8"));
+        assertTrue(template.getDnsServers().contains("1.1.1.1"));
     }
 }

@@ -5,6 +5,7 @@ import com.github.dockerjava.api.model.ResourceSpecs;
 import com.github.dockerjava.api.model.Service;
 import com.github.dockerjava.api.model.SwarmNode;
 import com.github.dockerjava.api.model.SwarmNodeState;
+import com.github.dockerjava.api.model.SwarmNodeStatus;
 import com.github.dockerjava.api.model.Task;
 import com.github.dockerjava.api.model.TaskState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -77,22 +78,27 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             long totalMemory = 0, totalCpu = 0;
 
             for (SwarmNode node : nodes) {
-                if (node.getStatus() != null && node.getStatus().getState() == SwarmNodeState.READY) {
+                SwarmNodeStatus nodeStatus = node.getStatus();
+                SwarmNodeState nodeState = (nodeStatus != null) ? nodeStatus.getState() : null;
+
+                if (SwarmNodeState.READY.equals(nodeState)) {
                     readyNodes++;
                 }
                 if (node.getManagerStatus() != null) managerNodes++;
 
                 var desc = node.getDescription();
-                if (desc != null && desc.getResources() != null) {
-                    var resources = desc.getResources();
-                    if (resources.getMemoryBytes() != null) totalMemory += resources.getMemoryBytes();
-                    if (resources.getNanoCPUs() != null) totalCpu += resources.getNanoCPUs();
+                var resources = (desc != null) ? desc.getResources() : null;
+                if (resources != null) {
+                    Long memBytes = resources.getMemoryBytes();
+                    Long cpuNano = resources.getNanoCPUs();
+                    if (memBytes != null) totalMemory += memBytes;
+                    if (cpuNano != null) totalCpu += cpuNano;
                 }
 
                 NodeInfo nodeInfo = new NodeInfo();
                 nodeInfo.setId(node.getId());
                 nodeInfo.setHostname(desc != null ? desc.getHostname() : "unknown");
-                nodeInfo.setState(node.getStatus() != null ? node.getStatus().getState().name() : "unknown");
+                nodeInfo.setState(nodeState != null ? nodeState.name() : "unknown");
                 status.addNode(nodeInfo);
             }
 
@@ -111,9 +117,11 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             for (Service service : services) {
                 ServiceInfo info = new ServiceInfo();
                 info.setId(service.getId());
-                info.setName(service.getSpec().getName());
+                var serviceSpec = service.getSpec();
+                info.setName(serviceSpec != null ? serviceSpec.getName() : "unknown");
 
                 List<Task> tasks = dockerClient.getServiceTasks(service.getId());
+                if (tasks == null) tasks = java.util.Collections.emptyList();
                 for (Task task : tasks) {
                     if (task.getStatus() != null) {
                         TaskState state = task.getStatus().getState();
@@ -197,20 +205,23 @@ public class ClusterMonitor extends AsyncPeriodicWork {
      * Extracts reserved memory from a task's resource requirements.
      */
     private long getTaskReservedMemory(Task task) {
-        if (task.getSpec() == null) return 0;
-        ResourceRequirements resources = task.getSpec().getResources();
+        var taskSpec = task.getSpec();
+        if (taskSpec == null) return 0;
+        ResourceRequirements resources = taskSpec.getResources();
         if (resources == null) return 0;
 
         // Try reservations first (what Swarm scheduler uses)
         ResourceSpecs reservations = resources.getReservations();
-        if (reservations != null && reservations.getMemoryBytes() != null) {
-            return reservations.getMemoryBytes();
+        Long memBytes = (reservations != null) ? reservations.getMemoryBytes() : null;
+        if (memBytes != null) {
+            return memBytes;
         }
 
         // Fall back to limits
         ResourceSpecs limits = resources.getLimits();
-        if (limits != null && limits.getMemoryBytes() != null) {
-            return limits.getMemoryBytes();
+        memBytes = (limits != null) ? limits.getMemoryBytes() : null;
+        if (memBytes != null) {
+            return memBytes;
         }
 
         return 0;
@@ -220,20 +231,23 @@ public class ClusterMonitor extends AsyncPeriodicWork {
      * Extracts reserved CPU (in nanoCPUs) from a task's resource requirements.
      */
     private long getTaskReservedCpu(Task task) {
-        if (task.getSpec() == null) return 0;
-        ResourceRequirements resources = task.getSpec().getResources();
+        var taskSpec = task.getSpec();
+        if (taskSpec == null) return 0;
+        ResourceRequirements resources = taskSpec.getResources();
         if (resources == null) return 0;
 
         // Try reservations first (what Swarm scheduler uses)
         ResourceSpecs reservations = resources.getReservations();
-        if (reservations != null && reservations.getNanoCPUs() != null) {
-            return reservations.getNanoCPUs();
+        Long cpuNano = (reservations != null) ? reservations.getNanoCPUs() : null;
+        if (cpuNano != null) {
+            return cpuNano;
         }
 
         // Fall back to limits
         ResourceSpecs limits = resources.getLimits();
-        if (limits != null && limits.getNanoCPUs() != null) {
-            return limits.getNanoCPUs();
+        cpuNano = (limits != null) ? limits.getNanoCPUs() : null;
+        if (cpuNano != null) {
+            return cpuNano;
         }
 
         return 0;

@@ -101,6 +101,12 @@
             </exclusions>
         </dependency>
 
+        <!-- BouncyCastle for TLS certificate handling -->
+        <dependency>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>bouncycastle-api</artifactId>
+        </dependency>
+
         <!-- Jenkins Plugins -->
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>

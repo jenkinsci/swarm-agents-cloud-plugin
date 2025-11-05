@@ -6,12 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,8 +22,14 @@ class DockerSwarmClientIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        // Use local Docker socket
-        String dockerHost = DockerClientFactory.instance().client().configuration().dockerHost().toString();
+        // Use local Docker socket - detect from environment or use default
+        String dockerHost = System.getenv("DOCKER_HOST");
+        if (dockerHost == null || dockerHost.isBlank()) {
+            // Default to local socket
+            dockerHost = System.getProperty("os.name").toLowerCase().contains("win")
+                    ? "tcp://localhost:2375"
+                    : "unix:///var/run/docker.sock";
+        }
         client = new DockerSwarmClient(dockerHost, null);
     }
 

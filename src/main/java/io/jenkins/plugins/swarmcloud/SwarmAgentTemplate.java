@@ -65,6 +65,12 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     // Docker Swarm Secrets
     private List<SwarmSecretConfig> secrets;
 
+    // Docker Swarm Configs (for configuration files)
+    private List<SwarmConfigFile> configs;
+
+    // Cache directories (mounted as tmpfs or volumes for build caching)
+    private List<String> cacheDirs;
+
     // Health check configuration
     private String healthCheckCommand;
     private int healthCheckIntervalSeconds;
@@ -101,6 +107,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     // Retry configuration for provisioning
     private int provisionRetryCount;       // Number of retries on failure (default 3)
     private long provisionRetryDelayMs;    // Initial delay between retries (default 1000)
+
+    // Port bindings for published ports
+    private List<PortBinding> portBindings;  // e.g., 80:8080, :5900
 
     // Parent cloud reference
     private transient SwarmCloud parent;
@@ -143,6 +152,17 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.labelString = Util.fixEmptyAndTrim(labelString);
     }
 
+    // Alias for docker-swarm-plugin compatibility
+    @Nullable
+    public String getLabel() {
+        return labelString;
+    }
+
+    @DataBoundSetter
+    public void setLabel(String label) {
+        this.labelString = Util.fixEmptyAndTrim(label);
+    }
+
     @Nullable
     public String getCommand() {
         return command;
@@ -161,6 +181,17 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundSetter
     public void setRemoteFs(String remoteFs) {
         this.remoteFs = Util.fixEmptyAndTrim(remoteFs);
+    }
+
+    // Alias for docker-swarm-plugin compatibility
+    @NonNull
+    public String getWorkingDir() {
+        return getRemoteFs();
+    }
+
+    @DataBoundSetter
+    public void setWorkingDir(String workingDir) {
+        this.remoteFs = Util.fixEmptyAndTrim(workingDir);
     }
 
     public int getNumExecutors() {
@@ -211,6 +242,121 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.memoryLimit = Util.fixEmptyAndTrim(memoryLimit);
     }
 
+    // Aliases for docker-swarm-plugin compatibility (NanoCPUs and Bytes)
+
+    /**
+     * Gets CPU limit in nanoCPUs (1e9 = 1 CPU).
+     * For docker-swarm-plugin compatibility.
+     */
+    @Nullable
+    public Long getLimitsNanoCPUs() {
+        if (cpuLimit == null || cpuLimit.isBlank()) return null;
+        try {
+            return (long) (Double.parseDouble(cpuLimit) * 1_000_000_000L);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    @DataBoundSetter
+    public void setLimitsNanoCPUs(Long nanoCPUs) {
+        if (nanoCPUs == null || nanoCPUs <= 0) {
+            this.cpuLimit = null;
+        } else {
+            this.cpuLimit = String.valueOf(nanoCPUs / 1_000_000_000.0);
+        }
+    }
+
+    /**
+     * Gets memory limit in bytes.
+     * For docker-swarm-plugin compatibility.
+     */
+    @Nullable
+    public Long getLimitsMemoryBytes() {
+        return parseMemoryToBytes(memoryLimit);
+    }
+
+    @DataBoundSetter
+    public void setLimitsMemoryBytes(Long bytes) {
+        this.memoryLimit = formatBytesToMemory(bytes);
+    }
+
+    /**
+     * Gets CPU reservation in nanoCPUs.
+     * For docker-swarm-plugin compatibility.
+     */
+    @Nullable
+    public Long getReservationsNanoCPUs() {
+        if (cpuReservation == null || cpuReservation.isBlank()) return null;
+        try {
+            return (long) (Double.parseDouble(cpuReservation) * 1_000_000_000L);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    @DataBoundSetter
+    public void setReservationsNanoCPUs(Long nanoCPUs) {
+        if (nanoCPUs == null || nanoCPUs <= 0) {
+            this.cpuReservation = null;
+        } else {
+            this.cpuReservation = String.valueOf(nanoCPUs / 1_000_000_000.0);
+        }
+    }
+
+    /**
+     * Gets memory reservation in bytes.
+     * For docker-swarm-plugin compatibility.
+     */
+    @Nullable
+    public Long getReservationsMemoryBytes() {
+        return parseMemoryToBytes(memoryReservation);
+    }
+
+    @DataBoundSetter
+    public void setReservationsMemoryBytes(Long bytes) {
+        this.memoryReservation = formatBytesToMemory(bytes);
+    }
+
+    // Memory conversion helpers
+
+    @Nullable
+    private static Long parseMemoryToBytes(String memory) {
+        if (memory == null || memory.isBlank()) return null;
+        memory = memory.trim().toLowerCase();
+        try {
+            long multiplier = 1;
+            if (memory.endsWith("g")) {
+                multiplier = 1024L * 1024 * 1024;
+                memory = memory.substring(0, memory.length() - 1);
+            } else if (memory.endsWith("m")) {
+                multiplier = 1024L * 1024;
+                memory = memory.substring(0, memory.length() - 1);
+            } else if (memory.endsWith("k")) {
+                multiplier = 1024L;
+                memory = memory.substring(0, memory.length() - 1);
+            } else if (memory.endsWith("b")) {
+                memory = memory.substring(0, memory.length() - 1);
+            }
+            return Long.parseLong(memory) * multiplier;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String formatBytesToMemory(Long bytes) {
+        if (bytes == null || bytes <= 0) return null;
+        if (bytes >= 1024L * 1024 * 1024 && bytes % (1024L * 1024 * 1024) == 0) {
+            return (bytes / (1024L * 1024 * 1024)) + "g";
+        } else if (bytes >= 1024L * 1024 && bytes % (1024L * 1024) == 0) {
+            return (bytes / (1024L * 1024)) + "m";
+        } else if (bytes >= 1024L && bytes % 1024L == 0) {
+            return (bytes / 1024L) + "k";
+        }
+        return bytes.toString();
+    }
+
     @Nullable
     public String getCpuReservation() {
         return cpuReservation;
@@ -241,6 +387,17 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.mounts = mounts;
     }
 
+    // Alias for docker-swarm-plugin compatibility
+    @NonNull
+    public List<MountConfig> getHostBinds() {
+        return getMounts();
+    }
+
+    @DataBoundSetter
+    public void setHostBinds(List<MountConfig> hostBinds) {
+        this.mounts = hostBinds;
+    }
+
     @NonNull
     public List<EnvironmentVariable> getEnvironmentVariables() {
         return environmentVariables != null ? Collections.unmodifiableList(environmentVariables) : Collections.emptyList();
@@ -249,6 +406,17 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundSetter
     public void setEnvironmentVariables(List<EnvironmentVariable> environmentVariables) {
         this.environmentVariables = environmentVariables;
+    }
+
+    // Alias for docker-swarm-plugin compatibility
+    @NonNull
+    public List<EnvironmentVariable> getEnvVars() {
+        return getEnvironmentVariables();
+    }
+
+    @DataBoundSetter
+    public void setEnvVars(List<EnvironmentVariable> envVars) {
+        this.environmentVariables = envVars;
     }
 
     @NonNull
@@ -331,6 +499,83 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundSetter
     public void setSecrets(List<SwarmSecretConfig> secrets) {
         this.secrets = secrets;
+    }
+
+    @NonNull
+    public List<SwarmConfigFile> getConfigs() {
+        return configs != null ? Collections.unmodifiableList(configs) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setConfigs(List<SwarmConfigFile> configs) {
+        this.configs = configs;
+    }
+
+    /**
+     * Gets configs as newline-separated string for UI (format: configName:targetPath).
+     */
+    @Nullable
+    public String getConfigsString() {
+        if (configs == null || configs.isEmpty()) {
+            return null;
+        }
+        return configs.stream()
+                .map(SwarmConfigFile::toString)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * Sets configs from newline-separated string (format: configName:targetPath).
+     * Example: nethasp.ini:/opt/1cv8/current/conf/nethasp.ini
+     */
+    @DataBoundSetter
+    public void setConfigsString(String configsStr) {
+        if (configsStr == null || configsStr.isBlank()) {
+            this.configs = null;
+            return;
+        }
+        this.configs = Arrays.stream(configsStr.split("\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(SwarmConfigFile::parse)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @NonNull
+    public List<String> getCacheDirs() {
+        return cacheDirs != null ? Collections.unmodifiableList(cacheDirs) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setCacheDirs(List<String> cacheDirs) {
+        this.cacheDirs = cacheDirs;
+    }
+
+    /**
+     * Gets cache directories as newline-separated string for UI.
+     */
+    @Nullable
+    public String getCacheDirsString() {
+        if (cacheDirs == null || cacheDirs.isEmpty()) {
+            return null;
+        }
+        return String.join("\n", cacheDirs);
+    }
+
+    /**
+     * Sets cache directories from newline-separated string.
+     */
+    @DataBoundSetter
+    public void setCacheDirsString(String cacheDirsStr) {
+        if (cacheDirsStr == null || cacheDirsStr.isBlank()) {
+            this.cacheDirs = null;
+            return;
+        }
+        this.cacheDirs = Arrays.stream(cacheDirsStr.split("\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty() && s.startsWith("/"))
+                .collect(Collectors.toList());
     }
 
     @Nullable
@@ -488,6 +733,17 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         return dnsServers != null && !dnsServers.isEmpty() ? String.join(", ", dnsServers) : null;
     }
 
+    // Alias for docker-swarm-plugin compatibility
+    @Nullable
+    public String getDnsIps() {
+        return getDnsServersString();
+    }
+
+    @DataBoundSetter
+    public void setDnsIps(String dnsIps) {
+        setDnsServersString(dnsIps);
+    }
+
     @NonNull
     public List<String> getDnsOptions() {
         return dnsOptions != null ? Collections.unmodifiableList(dnsOptions) : Collections.emptyList();
@@ -632,6 +888,57 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.provisionRetryDelayMs = provisionRetryDelayMs;
     }
 
+    @NonNull
+    public List<PortBinding> getPortBindings() {
+        return portBindings != null ? Collections.unmodifiableList(portBindings) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setPortBindings(List<PortBinding> portBindings) {
+        this.portBindings = portBindings;
+    }
+
+    /**
+     * Gets port bindings as newline-separated string for UI.
+     * Format: [hostPort:]containerPort[/protocol]
+     * Examples: 80:8080, :5900, 443:8443/tcp
+     */
+    @Nullable
+    public String getPortBindingsString() {
+        if (portBindings == null || portBindings.isEmpty()) return null;
+        return portBindings.stream()
+                .map(PortBinding::toString)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /**
+     * Sets port bindings from newline-separated string.
+     */
+    @DataBoundSetter
+    public void setPortBindingsString(String str) {
+        if (str == null || str.isBlank()) {
+            this.portBindings = null;
+            return;
+        }
+        this.portBindings = Arrays.stream(str.split("\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .map(PortBinding::parse)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    // Alias for docker-swarm-plugin compatibility
+    @Nullable
+    public String getPortBinds() {
+        return getPortBindingsString();
+    }
+
+    @DataBoundSetter
+    public void setPortBinds(String portBinds) {
+        setPortBindingsString(portBinds);
+    }
+
     /**
      * Resolves this template by merging with parent template if inheritFrom is set.
      * Similar to Kubernetes plugin podTemplate inheritance.
@@ -669,10 +976,12 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         resolved.setCpuReservation(this.cpuReservation != null ? this.cpuReservation : parentTemplate.getCpuReservation());
         resolved.setMemoryReservation(this.memoryReservation != null ? this.memoryReservation : parentTemplate.getMemoryReservation());
 
-        // Merge lists (mounts, envVars, secrets)
+        // Merge lists (mounts, envVars, secrets, configs, cacheDirs)
         resolved.setMounts(mergeLists(parentTemplate.getMounts(), this.mounts));
         resolved.setEnvironmentVariables(mergeLists(parentTemplate.getEnvironmentVariables(), this.environmentVariables));
         resolved.setSecrets(mergeLists(parentTemplate.getSecrets(), this.secrets));
+        resolved.setConfigs(mergeLists(parentTemplate.getConfigs(), this.configs));
+        resolved.setCacheDirs(mergeLists(parentTemplate.getCacheDirs(), this.cacheDirs));
 
         // Placement constraints - merge
         resolved.setPlacementConstraints(mergeLists(parentTemplate.getPlacementConstraints(), this.placementConstraints));
@@ -705,6 +1014,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         resolved.setIdleTimeoutMinutes(this.idleTimeoutMinutes > 0 ? this.idleTimeoutMinutes : parentTemplate.getIdleTimeoutMinutes());
         resolved.setProvisionRetryCount(this.provisionRetryCount > 0 ? this.provisionRetryCount : parentTemplate.getProvisionRetryCount());
         resolved.setProvisionRetryDelayMs(this.provisionRetryDelayMs > 0 ? this.provisionRetryDelayMs : parentTemplate.getProvisionRetryDelayMs());
+        resolved.setPortBindings(mergeLists(parentTemplate.getPortBindings(), this.portBindings));
 
         return resolved;
     }
@@ -936,6 +1246,98 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             @Override
             public String getDisplayName() {
                 return "Environment Variable";
+            }
+        }
+    }
+
+    /**
+     * Port binding configuration for Docker Swarm service.
+     * Format: [hostPort:]containerPort[/protocol]
+     * Examples: 80:8080, :5900, 443:8443/tcp
+     */
+    public static class PortBinding extends AbstractDescribableImpl<PortBinding> {
+        private final int publishedPort;   // Host port (0 = random)
+        private final int targetPort;      // Container port
+        private final String protocol;     // tcp or udp (default: tcp)
+
+        @DataBoundConstructor
+        public PortBinding(int publishedPort, int targetPort, String protocol) {
+            this.publishedPort = publishedPort;
+            this.targetPort = targetPort;
+            this.protocol = protocol != null && !protocol.isBlank() ? protocol.toLowerCase() : "tcp";
+        }
+
+        public int getPublishedPort() {
+            return publishedPort;
+        }
+
+        public int getTargetPort() {
+            return targetPort;
+        }
+
+        public String getProtocol() {
+            return protocol != null ? protocol : "tcp";
+        }
+
+        /**
+         * Parses a port binding string.
+         * Formats: 80:8080, :5900, 443:8443/tcp, 53:53/udp
+         */
+        @Nullable
+        public static PortBinding parse(String str) {
+            if (str == null || str.isBlank()) return null;
+
+            str = str.trim();
+            String protocol = "tcp";
+            int slashIdx = str.indexOf('/');
+            if (slashIdx > 0) {
+                protocol = str.substring(slashIdx + 1).toLowerCase();
+                str = str.substring(0, slashIdx);
+            }
+
+            int colonIdx = str.indexOf(':');
+            if (colonIdx < 0) {
+                // Just container port
+                try {
+                    int targetPort = Integer.parseInt(str);
+                    return new PortBinding(0, targetPort, protocol);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+
+            String hostPart = str.substring(0, colonIdx).trim();
+            String containerPart = str.substring(colonIdx + 1).trim();
+
+            try {
+                int publishedPort = hostPart.isEmpty() ? 0 : Integer.parseInt(hostPart);
+                int targetPort = Integer.parseInt(containerPart);
+                return new PortBinding(publishedPort, targetPort, protocol);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            if (publishedPort > 0) {
+                sb.append(publishedPort);
+            }
+            sb.append(':').append(targetPort);
+            if (!"tcp".equalsIgnoreCase(protocol)) {
+                sb.append('/').append(protocol);
+            }
+            return sb.toString();
+        }
+
+        @Extension
+        @Symbol("swarmPortBinding")
+        public static class DescriptorImpl extends Descriptor<PortBinding> {
+            @NonNull
+            @Override
+            public String getDisplayName() {
+                return "Port Binding";
             }
         }
     }
