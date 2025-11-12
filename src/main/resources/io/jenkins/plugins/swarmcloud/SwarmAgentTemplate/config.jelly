@@ -43,6 +43,44 @@
         <f:textbox/>
     </f:entry>
 
+    <f:entry title="User" field="user"
+             description="User to run container as (e.g., root, 1000:1000)">
+        <f:textbox/>
+    </f:entry>
+
+    <f:section title="Environment Variables">
+        <f:entry title="Environment Variables">
+            <f:repeatableProperty field="envVars" add="Add Variable"/>
+        </f:entry>
+    </f:section>
+
+    <f:section title="Host Binds">
+        <f:entry title="Host Binds">
+            <f:repeatableProperty field="hostBinds" add="Add Bind"/>
+        </f:entry>
+    </f:section>
+
+    <f:section title="Docker Configs">
+        <f:entry title="Configs (newline-separated)" field="configsString"
+                 description="Docker Swarm configs to mount. Format: configName:targetPath (one per line). Example: nethasp.ini:/opt/1cv8/current/conf/nethasp.ini">
+            <f:textarea/>
+        </f:entry>
+    </f:section>
+
+    <f:section title="Cache Directories">
+        <f:entry title="Cache Dirs (newline-separated)" field="cacheDirsString"
+                 description="Directories to mount as tmpfs for caching (one per line). Example: /cache">
+            <f:textarea/>
+        </f:entry>
+    </f:section>
+
+    <f:section title="Port Bindings">
+        <f:entry title="Port Binds (newline-separated)" field="portBinds"
+                 description="Published ports. Format: [hostPort:]containerPort[/protocol]. Examples: 80:8080, :5900">
+            <f:textarea/>
+        </f:entry>
+    </f:section>
+
     <f:advanced>
         <f:section title="Resource Constraints">
             <f:entry title="CPU Limit" field="cpuLimit"
@@ -127,40 +165,14 @@
             </f:entry>
         </f:section>
 
-        <f:section title="Host Binds">
-            <f:entry title="Host Binds">
-                <f:repeatableProperty field="hostBinds" add="Add Bind"/>
-            </f:entry>
-        </f:section>
-
-        <f:section title="Environment Variables">
-            <f:entry title="Environment Variables">
-                <f:repeatableProperty field="envVars" add="Add Variable"/>
-            </f:entry>
-        </f:section>
-
         <f:section title="Docker Secrets">
             <f:entry title="Secrets">
                 <f:repeatableProperty field="secrets" add="Add Secret"/>
             </f:entry>
         </f:section>
 
-        <f:section title="Docker Configs">
-            <f:entry title="Configs (newline-separated)" field="configsString"
-                     description="Docker Swarm configs to mount. Format: configName:targetPath (one per line). Example: nethasp.ini:/opt/1cv8/current/conf/nethasp.ini">
-                <f:textarea/>
-            </f:entry>
-        </f:section>
-
-        <f:section title="Cache Directories">
-            <f:entry title="Cache Dirs (newline-separated)" field="cacheDirsString"
-                     description="Directories to mount as tmpfs for caching (one per line). Example: /cache">
-                <f:textarea/>
-            </f:entry>
-        </f:section>
-
         <f:section title="Placement">
-            <f:entry title="Placement Constraints" field="placementConstraintsString"
+            <f:entry title="Placement Constraints (newline-separated)" field="placementConstraintsString"
                      description="One constraint per line (e.g., node.role==worker)">
                 <f:textarea/>
             </f:entry>
@@ -171,22 +183,10 @@
             </f:entry>
         </f:section>
 
-        <f:section title="Networking">
-            <f:entry title="Port Binds" field="portBinds"
-                     description="Published ports (newline-separated). Format: [hostPort:]containerPort[/protocol]. Examples: 80:8080, :5900, 443:8443/tcp">
-                <f:textarea/>
-            </f:entry>
-        </f:section>
-
         <f:section title="Advanced Container Options">
             <f:entry title="Privileged Mode" field="privileged"
                      description="Run container in privileged mode (use with caution)">
                 <f:checkbox/>
-            </f:entry>
-
-            <f:entry title="User" field="user"
-                     description="User to run container as (e.g., 1000:1000 or jenkins)">
-                <f:textbox/>
             </f:entry>
 
             <f:entry title="Hostname" field="hostname"
@@ -204,7 +204,7 @@
                 <f:textbox/>
             </f:entry>
 
-            <f:entry title="Sysctls" field="sysctlsString"
+            <f:entry title="Sysctls (newline-separated)" field="sysctlsString"
                      description="Kernel parameters, one per line (e.g., net.core.somaxconn=1024)">
                 <f:textarea/>
             </f:entry>

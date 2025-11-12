@@ -2,7 +2,6 @@ package io.jenkins.plugins.swarmcloud;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.model.TaskListener;
-import hudson.slaves.ComputerLauncher;
 import hudson.slaves.JNLPLauncher;
 import hudson.slaves.SlaveComputer;
 import jenkins.model.Jenkins;
@@ -10,14 +9,18 @@ import jenkins.slaves.JnlpSlaveAgentProtocol;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * Launcher for Docker Swarm agents.
- * Agents connect via WebSocket (preferred) or JNLP.
+ * Extends JNLPLauncher to allow inbound agent connections via WebSocket or JNLP.
  */
-public class SwarmComputerLauncher extends ComputerLauncher {
+public class SwarmComputerLauncher extends JNLPLauncher {
 
     private static final Logger LOGGER = Logger.getLogger(SwarmComputerLauncher.class.getName());
     private static final int DEFAULT_TIMEOUT_SECONDS = 300; // 5 minutes
@@ -26,7 +29,6 @@ public class SwarmComputerLauncher extends ComputerLauncher {
     private final String cloudName;
     private final String image;
     private final boolean useWebSocket;
-    private final String tunnel;
     private final String workDir;
     private final int connectionTimeoutSeconds;
 
@@ -48,43 +50,55 @@ public class SwarmComputerLauncher extends ComputerLauncher {
                                   String tunnel,
                                   String workDir,
                                   int connectionTimeoutSeconds) {
+        super(tunnel, null); // Pass tunnel to JNLPLauncher
         this.cloudName = cloudName;
         this.image = image;
         this.useWebSocket = useWebSocket;
-        this.tunnel = tunnel;
         this.workDir = workDir;
         this.connectionTimeoutSeconds = connectionTimeoutSeconds > 0 ? connectionTimeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
     }
 
     @Override
-    public void launch(SlaveComputer computer, TaskListener listener) throws IOException, InterruptedException {
+    public void launch(SlaveComputer computer, TaskListener listener) {
         PrintStream logger = listener.getLogger();
 
-        if (!(computer instanceof SwarmAgent.SwarmComputer)) {
-            throw new IllegalArgumentException("Expected SwarmComputer, got: " + computer.getClass().getName());
+        try {
+            if (!(computer instanceof SwarmAgent.SwarmComputer)) {
+                throw new IllegalArgumentException("Expected SwarmComputer, got: " + computer.getClass().getName());
+            }
+
+            SwarmAgent.SwarmComputer swarmComputer = (SwarmAgent.SwarmComputer) computer;
+            SwarmAgent agent = swarmComputer.getNode();
+
+            if (agent == null) {
+                logger.println("ERROR: Agent node is null");
+                LOGGER.log(Level.SEVERE, "Agent node is null for computer: {0}", computer.getName());
+                return;
+            }
+
+            logger.println("=== Swarm Agent Launch ===");
+            logger.println("Agent name: " + agent.getNodeName());
+            logger.println("Service ID: " + agent.getServiceId());
+            logger.println("Image: " + image);
+            logger.println("Connection mode: " + (useWebSocket ? "WebSocket" : "JNLP/TCP"));
+
+            LOGGER.log(Level.INFO, "Launching Swarm agent: {0}, service: {1}, webSocket: {2}",
+                    new Object[]{agent.getNodeName(), agent.getServiceId(), useWebSocket});
+
+            // The Docker container is already started by the provision() method
+            // Agent will connect back to Jenkins using the secret embedded in environment variables
+            logger.println("Waiting for agent to connect (timeout: " + connectionTimeoutSeconds + "s)...");
+
+            waitForConnection(computer, listener, connectionTimeoutSeconds);
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.println("ERROR: Launch interrupted");
+            LOGGER.log(Level.WARNING, "Launch interrupted for: " + computer.getName(), e);
+        } catch (Exception e) {
+            logger.println("ERROR: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Launch failed for: " + computer.getName(), e);
         }
-
-        SwarmAgent.SwarmComputer swarmComputer = (SwarmAgent.SwarmComputer) computer;
-        SwarmAgent agent = swarmComputer.getNode();
-
-        if (agent == null) {
-            throw new IOException("Agent node is null");
-        }
-
-        logger.println("=== Swarm Agent Launch ===");
-        logger.println("Agent name: " + agent.getNodeName());
-        logger.println("Service ID: " + agent.getServiceId());
-        logger.println("Image: " + image);
-        logger.println("Connection mode: " + (useWebSocket ? "WebSocket" : "JNLP/TCP"));
-
-        LOGGER.log(Level.INFO, "Launching Swarm agent: {0}, service: {1}, webSocket: {2}",
-                new Object[]{agent.getNodeName(), agent.getServiceId(), useWebSocket});
-
-        // The Docker container is already started by the provision() method
-        // Agent will connect back to Jenkins using the secret embedded in environment variables
-        logger.println("Waiting for agent to connect (timeout: " + connectionTimeoutSeconds + "s)...");
-
-        waitForConnection(computer, listener, connectionTimeoutSeconds);
     }
 
     /**
@@ -207,7 +221,7 @@ public class SwarmComputerLauncher extends ComputerLauncher {
                                               @NonNull String secret,
                                               boolean useWebSocket,
                                               String workDir) {
-        java.util.List<String> args = new java.util.ArrayList<>();
+        List<String> args = new ArrayList<>();
 
         args.add("-url");
         args.add(jenkinsUrl);
@@ -234,12 +248,12 @@ public class SwarmComputerLauncher extends ComputerLauncher {
      * Builds environment variables for the agent container.
      */
     @NonNull
-    public static java.util.Map<String, String> buildAgentEnvironment(@NonNull String jenkinsUrl,
-                                                                       @NonNull String agentName,
-                                                                       @NonNull String secret,
-                                                                       boolean useWebSocket,
-                                                                       String workDir) {
-        java.util.Map<String, String> env = new java.util.LinkedHashMap<>();
+    public static Map<String, String> buildAgentEnvironment(@NonNull String jenkinsUrl,
+                                                             @NonNull String agentName,
+                                                             @NonNull String secret,
+                                                             boolean useWebSocket,
+                                                             String workDir) {
+        Map<String, String> env = new LinkedHashMap<>();
 
         env.put("JENKINS_URL", jenkinsUrl);
         env.put("JENKINS_AGENT_NAME", agentName);
@@ -278,10 +292,6 @@ public class SwarmComputerLauncher extends ComputerLauncher {
 
     public boolean isUseWebSocket() {
         return useWebSocket;
-    }
-
-    public String getTunnel() {
-        return tunnel;
     }
 
     public String getWorkDir() {

@@ -2,7 +2,6 @@ package io.jenkins.plugins.swarmcloud.api;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateServiceResponse;
-import com.github.dockerjava.api.command.LogSwarmObjectCmd;
 import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientConfig;
@@ -33,13 +32,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
-import java.security.KeyFactory;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -246,10 +243,18 @@ public class DockerSwarmClient implements Closeable {
             containerSpec.withMounts(mounts);
         }
 
-        // Add command if specified, otherwise rely on image default (inbound-agent)
+        // Add command if specified
         if (template.getCommand() != null && !template.getCommand().isBlank()) {
             containerSpec.withCommand(List.of(template.getCommand().split("\\s+")));
         }
+
+        // Pass Jenkins URL and agent info as args for images that expect command-line arguments
+        // This supports images with entrypoints like: wget $1/jnlpJars/agent.jar
+        // Args are passed to the ENTRYPOINT as positional arguments ($1, $2, $3)
+        List<String> args = List.of(jenkinsUrl, secret, agentName);
+        containerSpec.withArgs(args);
+
+        LOGGER.log(Level.INFO, "Container args for {0}: {1}", new Object[]{agentName, args});
 
         // Add working directory
         containerSpec.withDir(template.getRemoteFs());
@@ -482,14 +487,9 @@ public class DockerSwarmClient implements Closeable {
      * Checks if a service is running (has at least one running task).
      */
     public boolean isServiceRunning(@NonNull String serviceId) {
-        List<Task> tasks = getServiceTasks(serviceId);
-        for (Task task : tasks) {
-            TaskStatus status = task.getStatus();
-            if (status != null && status.getState() == TaskState.RUNNING) {
-                return true;
-            }
-        }
-        return false;
+        return getServiceTasks(serviceId).stream()
+                .map(Task::getStatus)
+                .anyMatch(status -> status != null && status.getState() == TaskState.RUNNING);
     }
 
     /**
@@ -557,9 +557,20 @@ public class DockerSwarmClient implements Closeable {
         env.add("JENKINS_WEB_SOCKET=true");
         env.add("JENKINS_AGENT_WORKDIR=" + template.getRemoteFs());
 
+        // Additional environment variables for various entrypoint scripts
+        // Some scripts use JNLP_URL or JENKINS_JNLP_URL instead of JENKINS_URL
+        env.add("JNLP_URL=" + jenkinsUrl);
+        env.add("JENKINS_JNLP_URL=" + jenkinsUrl);
+
+        // Compatibility with old docker-swarm-plugin entrypoint scripts
+        String jenkinsUrlNormalized = jenkinsUrl.replaceAll("/$", "");
+        env.add("DOCKER_SWARM_PLUGIN_JENKINS_AGENT_JAR_URL=" + jenkinsUrlNormalized + "/jnlpJars/agent.jar");
+        env.add("DOCKER_SWARM_PLUGIN_JENKINS_AGENT_JNLP_URL=" + jenkinsUrlNormalized + "/computer/" + agentName + "/jenkins-agent.jnlp");
+        env.add("DOCKER_SWARM_PLUGIN_JENKINS_AGENT_SECRET=" + secret);
+
         // For jenkins/inbound-agent image compatibility
         env.add("JENKINS_DIRECT_CONNECTION=" +
-                jenkinsUrl.replace("http://", "").replace("https://", "").replaceAll("/$", ""));
+                jenkinsUrlNormalized.replace("http://", "").replace("https://", ""));
 
         // Add template-specific environment variables
         for (SwarmAgentTemplate.EnvironmentVariable var : template.getEnvironmentVariables()) {
@@ -581,22 +592,16 @@ public class DockerSwarmClient implements Closeable {
                     .withTarget(config.getTarget())
                     .withReadOnly(config.isReadOnly());
 
-            switch (config.getType().toLowerCase()) {
-                case "bind":
-                    mount.withType(MountType.BIND);
-                    mount.withSource(config.getSource());
-                    break;
-                case "volume":
-                    mount.withType(MountType.VOLUME);
-                    mount.withSource(config.getSource());
-                    break;
-                case "tmpfs":
-                    mount.withType(MountType.TMPFS);
-                    // tmpfs doesn't have a source
-                    break;
-                default:
-                    mount.withType(MountType.VOLUME);
-                    mount.withSource(config.getSource());
+            String mountType = config.getType().toLowerCase();
+            if ("tmpfs".equals(mountType)) {
+                mount.withType(MountType.TMPFS);
+            } else if ("bind".equals(mountType)) {
+                mount.withType(MountType.BIND);
+                mount.withSource(config.getSource());
+            } else {
+                // Default to VOLUME for "volume" or any unrecognized type
+                mount.withType(MountType.VOLUME);
+                mount.withSource(config.getSource());
             }
             mounts.add(mount);
         }
@@ -678,15 +683,18 @@ public class DockerSwarmClient implements Closeable {
                     continue;
                 }
 
+                String uid = secretConfig.getUid() != null ? secretConfig.getUid() : "0";
+                String gid = secretConfig.getGid() != null ? secretConfig.getGid() : "0";
+                long mode = secretConfig.getFileModeAsLong() != null ? secretConfig.getFileModeAsLong() : 0444L;
+
                 ContainerSpecSecret ref = new ContainerSpecSecret()
                         .withSecretId(secretId)
                         .withSecretName(secretConfig.getSecretName())
                         .withFile(new ContainerSpecFile()
                                 .withName(secretConfig.getEffectiveFileName())
-                                .withUid(secretConfig.getUid() != null ? secretConfig.getUid() : "0")
-                                .withGid(secretConfig.getGid() != null ? secretConfig.getGid() : "0")
-                                .withMode(secretConfig.getFileModeAsLong() != null ?
-                                        secretConfig.getFileModeAsLong() : 0444L));
+                                .withUid(uid)
+                                .withGid(gid)
+                                .withMode(mode));
 
                 refs.add(ref);
             } catch (Exception e) {
@@ -729,15 +737,18 @@ public class DockerSwarmClient implements Closeable {
                     continue;
                 }
 
+                String uid = configFile.getUid() != null ? configFile.getUid() : "0";
+                String gid = configFile.getGid() != null ? configFile.getGid() : "0";
+                long mode = configFile.getFileModeAsLong() != null ? configFile.getFileModeAsLong() : 0444L;
+
                 ContainerSpecConfig ref = new ContainerSpecConfig()
                         .withConfigID(configId)
                         .withConfigName(configFile.getConfigName())
                         .withFile(new ContainerSpecFile()
                                 .withName(configFile.getEffectiveTargetPath())
-                                .withUid(configFile.getUid() != null ? configFile.getUid() : "0")
-                                .withGid(configFile.getGid() != null ? configFile.getGid() : "0")
-                                .withMode(configFile.getFileModeAsLong() != null ?
-                                        configFile.getFileModeAsLong() : 0444L));
+                                .withUid(uid)
+                                .withGid(gid)
+                                .withMode(mode));
 
                 refs.add(ref);
                 LOGGER.log(Level.FINE, "Added config: {0} -> {1}",
@@ -803,7 +814,7 @@ public class DockerSwarmClient implements Closeable {
     public String createSecret(@NonNull String name, @NonNull byte[] data) {
         SecretSpec spec = new SecretSpec()
                 .withName(name)
-                .withData(java.util.Base64.getEncoder().encodeToString(data));
+                .withData(Base64.getEncoder().encodeToString(data));
         return dockerClient.createSecretCmd(spec).exec().getId();
     }
 
@@ -848,15 +859,13 @@ public class DockerSwarmClient implements Closeable {
         }
 
         // User
-        String user = template.getUser();
-        if (user != null && !user.isBlank()) {
-            containerSpec.withUser(user);
+        if (isNotBlank(template.getUser())) {
+            containerSpec.withUser(template.getUser());
         }
 
         // Hostname
-        String hostname = template.getHostname();
-        if (hostname != null && !hostname.isBlank()) {
-            containerSpec.withHostname(hostname);
+        if (isNotBlank(template.getHostname())) {
+            containerSpec.withHostname(template.getHostname());
         }
 
         // DNS configuration
@@ -878,9 +887,8 @@ public class DockerSwarmClient implements Closeable {
         }
 
         // Stop signal
-        String stopSignal = template.getStopSignal();
-        if (stopSignal != null && !stopSignal.isBlank()) {
-            containerSpec.withStopSignal(stopSignal);
+        if (isNotBlank(template.getStopSignal())) {
+            containerSpec.withStopSignal(template.getStopSignal());
         }
 
         // Stop grace period
@@ -920,8 +928,7 @@ public class DockerSwarmClient implements Closeable {
         String seccompProfile = template.getSeccompProfile();
         String apparmorProfile = template.getApparmorProfile();
 
-        if ((seccompProfile == null || seccompProfile.isBlank()) &&
-            (apparmorProfile == null || apparmorProfile.isBlank())) {
+        if (!isNotBlank(seccompProfile) && !isNotBlank(apparmorProfile)) {
             return;
         }
 
@@ -931,7 +938,7 @@ public class DockerSwarmClient implements Closeable {
         }
 
         // Seccomp profile
-        if (seccompProfile != null && !seccompProfile.isBlank()) {
+        if (isNotBlank(seccompProfile)) {
             LOGGER.log(Level.FINE, "Setting Seccomp profile: {0}", seccompProfile);
             // docker-java ContainerSpecPrivileges doesn't have direct seccomp support
             // In production, this would be set via raw API or custom ContainerSpecPrivileges extension
@@ -943,7 +950,7 @@ public class DockerSwarmClient implements Closeable {
         }
 
         // AppArmor profile
-        if (apparmorProfile != null && !apparmorProfile.isBlank()) {
+        if (isNotBlank(apparmorProfile)) {
             LOGGER.log(Level.FINE, "Setting AppArmor profile: {0}", apparmorProfile);
             // Similar limitation as Seccomp - docker-java has limited direct support
             // AppArmor profiles must be pre-loaded on Docker hosts
@@ -1002,5 +1009,12 @@ public class DockerSwarmClient implements Closeable {
         if (dockerClient != null) {
             dockerClient.close();
         }
+    }
+
+    /**
+     * Checks if a string is not null and not blank.
+     */
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
     }
 }

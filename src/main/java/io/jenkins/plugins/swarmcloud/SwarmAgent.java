@@ -75,6 +75,16 @@ public class SwarmAgent extends AbstractCloudSlave {
         this.createdTime = System.currentTimeMillis();
     }
 
+    /**
+     * Called after deserialization to restore transient state.
+     * Jenkins requires this to properly initialize the agent after loading from disk.
+     */
+    @Override
+    protected Object readResolve() {
+        // Call parent implementation to properly restore agent state
+        return super.readResolve();
+    }
+
     @NonNull
     public String getCloudName() {
         return cloudName;

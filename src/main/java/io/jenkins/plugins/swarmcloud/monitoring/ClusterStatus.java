@@ -137,6 +137,14 @@ public class ClusterStatus {
         return formatBytes(reservedMemory);
     }
 
+    public String getFormattedTotalCpu() {
+        return String.format("%.1f", totalCpu);
+    }
+
+    public String getFormattedUsedCpu() {
+        return String.format("%.1f", usedCpu);
+    }
+
     public double getMemoryUsagePercent() {
         if (totalMemory == 0) return 0;
         return (double) usedMemory / totalMemory * 100;

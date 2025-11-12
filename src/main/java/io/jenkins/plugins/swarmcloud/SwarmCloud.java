@@ -253,12 +253,30 @@ public class SwarmCloud extends Cloud {
         }
 
         Label label = state.getLabel();
+        LOGGER.log(Level.INFO, "canProvision called for cloud ''{0}'' with label: {1}, templates count: {2}",
+                new Object[]{name, label, templates != null ? templates.size() : 0});
+
         if (!canProvision()) {
+            LOGGER.log(Level.INFO, "canProvision=false: max agents reached ({0}/{1})",
+                    new Object[]{countCurrentAgents(), maxConcurrentAgents});
             return false;
         }
-        if (getTemplate(label) == null) {
+
+        SwarmAgentTemplate template = getTemplate(label);
+        if (template == null) {
+            // Log available templates for debugging
+            if (templates != null && !templates.isEmpty()) {
+                for (SwarmAgentTemplate t : templates) {
+                    LOGGER.log(Level.INFO, "Available template: name=''{0}'', label=''{1}''",
+                            new Object[]{t.getName(), t.getLabelString()});
+                }
+            }
+            LOGGER.log(Level.INFO, "canProvision=false: no template found for label ''{0}''", label);
             return false;
         }
+        LOGGER.log(Level.INFO, "Found matching template: ''{0}'' for label ''{1}''",
+                new Object[]{template.getName(), label});
+
         // Check rate limit
         if (rateLimitEnabled && !ProvisionRateLimiter.canProvision(name, getMaxProvisionsPerMinute(), getMinProvisionIntervalMs())) {
             LOGGER.log(Level.FINE, "Provision rate limited for cloud: {0}", name);

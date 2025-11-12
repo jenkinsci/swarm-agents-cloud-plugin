@@ -99,6 +99,14 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 nodeInfo.setId(node.getId());
                 nodeInfo.setHostname(desc != null ? desc.getHostname() : "unknown");
                 nodeInfo.setState(nodeState != null ? nodeState.name() : "unknown");
+                if (resources != null) {
+                    Long memBytes = resources.getMemoryBytes();
+                    Long cpuNano = resources.getNanoCPUs();
+                    nodeInfo.setMemoryBytes(memBytes != null ? memBytes : 0);
+                    nodeInfo.setCpuNanos(cpuNano != null ? cpuNano : 0);
+                }
+                // Set role based on manager status
+                nodeInfo.setRole(node.getManagerStatus() != null ? "manager" : "worker");
                 status.addNode(nodeInfo);
             }
 

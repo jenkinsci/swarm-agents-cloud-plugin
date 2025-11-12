@@ -92,8 +92,8 @@
                                             <div class="swarm-stat-label">Memory (${String.format("%.1f", status.memoryUsagePercent)}% used)</div>
                                         </div>
                                         <div class="swarm-stat">
-                                            <div class="swarm-stat-value">${String.format("%.1f", status.usedCpu)} / ${String.format("%.1f", status.totalCpu)}</div>
-                                            <div class="swarm-stat-label">CPU cores (${String.format("%.1f", status.cpuUsagePercent)}% used)</div>
+                                            <div class="swarm-stat-value">${status.formattedUsedCpu} / ${status.formattedTotalCpu} cores</div>
+                                            <div class="swarm-stat-label">CPU (${String.format("%.1f", status.cpuUsagePercent)}% used)</div>
                                         </div>
                                     </div>
 

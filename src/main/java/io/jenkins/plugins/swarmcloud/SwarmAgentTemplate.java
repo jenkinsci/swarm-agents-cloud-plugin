@@ -115,7 +115,27 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     private transient SwarmCloud parent;
 
     // Current instance count
-    private transient AtomicInteger currentInstances = new AtomicInteger(0);
+    private transient AtomicInteger currentInstances;
+
+    /**
+     * Ensures transient fields are initialized after deserialization.
+     */
+    protected Object readResolve() {
+        if (currentInstances == null) {
+            currentInstances = new AtomicInteger(0);
+        }
+        return this;
+    }
+
+    /**
+     * Gets the currentInstances counter, initializing if needed.
+     */
+    private AtomicInteger getCurrentInstancesCounter() {
+        if (currentInstances == null) {
+            currentInstances = new AtomicInteger(0);
+        }
+        return currentInstances;
+    }
 
     @DataBoundConstructor
     public SwarmAgentTemplate(@NonNull String name) {
@@ -125,6 +145,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         this.numExecutors = 1;
         this.maxInstances = 5;
         this.mode = Node.Mode.NORMAL;
+        this.currentInstances = new AtomicInteger(0);
     }
 
     @NonNull
@@ -1108,28 +1129,28 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      * Gets the available capacity for new instances.
      */
     public int getAvailableCapacity() {
-        return Math.max(0, maxInstances - currentInstances.get());
+        return Math.max(0, maxInstances - getCurrentInstancesCounter().get());
     }
 
     /**
      * Increments the current instance count.
      */
     public void incrementInstances() {
-        currentInstances.incrementAndGet();
+        getCurrentInstancesCounter().incrementAndGet();
     }
 
     /**
      * Decrements the current instance count.
      */
     public void decrementInstances() {
-        currentInstances.decrementAndGet();
+        getCurrentInstancesCounter().decrementAndGet();
     }
 
     /**
      * Gets the current instance count.
      */
     public int getCurrentInstances() {
-        return currentInstances.get();
+        return getCurrentInstancesCounter().get();
     }
 
     /**
@@ -1214,6 +1235,48 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             @Override
             public String getDisplayName() {
                 return "Mount Configuration";
+            }
+
+            /**
+             * Validates the mount type field.
+             */
+            public FormValidation doCheckType(@QueryParameter String value) {
+                if (Util.fixEmptyAndTrim(value) == null) {
+                    return FormValidation.error("Type is required. Use: bind, volume, or tmpfs");
+                }
+                String type = value.toLowerCase().trim();
+                if (!type.equals("bind") && !type.equals("volume") && !type.equals("tmpfs")) {
+                    return FormValidation.error("Invalid type. Must be: bind, volume, or tmpfs");
+                }
+                return FormValidation.ok();
+            }
+
+            /**
+             * Validates the source field.
+             */
+            public FormValidation doCheckSource(@QueryParameter String value, @QueryParameter String type) {
+                String t = Util.fixEmptyAndTrim(type);
+                String s = Util.fixEmptyAndTrim(value);
+                if (t != null && t.equalsIgnoreCase("tmpfs")) {
+                    return FormValidation.ok(); // Source not needed for tmpfs
+                }
+                if (s == null) {
+                    return FormValidation.warning("Source is required for bind and volume mounts");
+                }
+                return FormValidation.ok();
+            }
+
+            /**
+             * Validates the target field.
+             */
+            public FormValidation doCheckTarget(@QueryParameter String value) {
+                if (Util.fixEmptyAndTrim(value) == null) {
+                    return FormValidation.error("Target path is required");
+                }
+                if (!value.startsWith("/")) {
+                    return FormValidation.error("Target must be an absolute path (start with /)");
+                }
+                return FormValidation.ok();
             }
         }
     }
