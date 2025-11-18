@@ -118,7 +118,8 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             List<Service> services = dockerClient.listJenkinsServices();
             status.setActiveServices(services.size());
 
-            int running = 0, pending = 0, failed = 0;
+            // Count services by state (not tasks)
+            int runningServices = 0, pendingServices = 0, failedServices = 0;
             long reservedMemory = 0;
             long reservedCpuNano = 0;
 
@@ -128,32 +129,77 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 var serviceSpec = service.getSpec();
                 info.setName(serviceSpec != null ? serviceSpec.getName() : "unknown");
 
+                // Extract template name from service labels
+                if (serviceSpec != null && serviceSpec.getLabels() != null) {
+                    info.setTemplateName(serviceSpec.getLabels().get("jenkins.template"));
+                }
+
+                // Extract created time from service
+                if (service.getCreatedAt() != null) {
+                    info.setCreatedTime(service.getCreatedAt().getTime());
+                }
+
                 List<Task> tasks = dockerClient.getServiceTasks(service.getId());
                 if (tasks == null) tasks = java.util.Collections.emptyList();
+
+                // Determine service state based on task states
+                // Priority: running > pending > complete > shutdown > failed
+                boolean hasRunning = false, hasPending = false, hasFailed = false;
+                boolean hasComplete = false, hasShutdown = false;
+
                 for (Task task : tasks) {
                     if (task.getStatus() != null) {
                         TaskState state = task.getStatus().getState();
                         if (state == TaskState.RUNNING) {
-                            running++;
-                            info.setState("running");
+                            hasRunning = true;
                             // Collect resource reservations from running tasks
                             reservedMemory += getTaskReservedMemory(task);
                             reservedCpuNano += getTaskReservedCpu(task);
-                        } else if (state == TaskState.PENDING) {
-                            pending++;
-                            info.setState("pending");
-                        } else if (state == TaskState.FAILED) {
-                            failed++;
-                            info.setState("failed");
+                        } else if (state == TaskState.PENDING || state == TaskState.ASSIGNED
+                                || state == TaskState.ACCEPTED || state == TaskState.PREPARING
+                                || state == TaskState.READY || state == TaskState.STARTING) {
+                            hasPending = true;
+                        } else if (state == TaskState.COMPLETE) {
+                            hasComplete = true;
+                        } else if (state == TaskState.SHUTDOWN || state == TaskState.ORPHANED) {
+                            hasShutdown = true;
+                        } else if (state == TaskState.FAILED || state == TaskState.REJECTED) {
+                            hasFailed = true;
+                            // Capture error message
+                            if (task.getStatus().getErr() != null) {
+                                info.setError(task.getStatus().getErr());
+                            }
                         }
                     }
                 }
+
+                // Set service state based on priority and count by state
+                if (hasRunning) {
+                    info.setState("running");
+                    runningServices++;
+                } else if (hasPending) {
+                    info.setState("pending");
+                    pendingServices++;
+                } else if (hasComplete) {
+                    info.setState("complete");
+                } else if (hasShutdown) {
+                    info.setState("shutdown");
+                } else if (hasFailed) {
+                    info.setState("failed");
+                    failedServices++;
+                } else if (tasks.isEmpty()) {
+                    info.setState("stopped");
+                } else {
+                    info.setState("unknown");
+                }
+
                 status.addService(info);
             }
 
-            status.setRunningTasks(running);
-            status.setPendingTasks(pending);
-            status.setFailedTasks(failed);
+            // Use service counts instead of task counts
+            status.setRunningTasks(runningServices);
+            status.setPendingTasks(pendingServices);
+            status.setFailedTasks(failedServices);
             status.setReservedMemory(reservedMemory);
             status.setReservedCpu(reservedCpuNano / 1_000_000_000.0);
             // For now, usedMemory/usedCpu equals reservedMemory/reservedCpu

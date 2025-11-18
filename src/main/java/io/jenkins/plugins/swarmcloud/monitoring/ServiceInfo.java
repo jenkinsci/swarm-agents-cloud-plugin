@@ -37,6 +37,9 @@ public class ServiceInfo {
         if ("running".equalsIgnoreCase(state)) return "success";
         if ("pending".equalsIgnoreCase(state)) return "warning";
         if ("failed".equalsIgnoreCase(state)) return "danger";
+        if ("complete".equalsIgnoreCase(state)) return "info";
+        if ("shutdown".equalsIgnoreCase(state)) return "secondary";
+        if ("stopped".equalsIgnoreCase(state)) return "secondary";
         return "secondary";
     }
 
