@@ -62,8 +62,7 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
             return;
         }
 
-        listener.getLogger().println("Starting orphan service cleanup...");
-        LOGGER.log(Level.INFO, "Starting orphan service cleanup");
+        LOGGER.log(Level.FINE, "Starting orphan service cleanup");
 
         int totalCleaned = 0;
 
@@ -75,8 +74,11 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
             }
         }
 
-        listener.getLogger().println("Orphan service cleanup completed. Cleaned: " + totalCleaned);
-        LOGGER.log(Level.INFO, "Orphan service cleanup completed. Cleaned: {0}", totalCleaned);
+        if (totalCleaned > 0) {
+            LOGGER.log(Level.INFO, "Orphan service cleanup completed. Cleaned: {0}", totalCleaned);
+        } else {
+            LOGGER.log(Level.FINE, "Orphan service cleanup completed. No services cleaned");
+        }
     }
 
     /**
@@ -98,7 +100,6 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
             // Get all services from Docker Swarm
             List<Service> services = dockerClient.listServicesForCloud(cloud.name);
 
-            listener.getLogger().println("Found " + services.size() + " services for cloud: " + cloud.name);
             LOGGER.log(Level.FINE, "Found {0} services for cloud: {1}",
                     new Object[]{services.size(), cloud.name});
 
@@ -151,8 +152,7 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
 
                 if (isOrphan || isTooOld) {
                     String reason = isOrphan ? "orphan (no Jenkins node)" : "too old";
-                    listener.getLogger().println("Removing " + reason + " service: " + serviceName);
-                    LOGGER.log(Level.INFO, "Removing {0} service: {1}", new Object[]{reason, serviceName});
+                    LOGGER.log(Level.FINE, "Removing {0} service: {1}", new Object[]{reason, serviceName});
 
                     try {
                         dockerClient.removeService(service.getId());

@@ -253,11 +253,11 @@ public class SwarmCloud extends Cloud {
         }
 
         Label label = state.getLabel();
-        LOGGER.log(Level.INFO, "canProvision called for cloud ''{0}'' with label: {1}, templates count: {2}",
+        LOGGER.log(Level.FINE, "canProvision called for cloud ''{0}'' with label: {1}, templates count: {2}",
                 new Object[]{name, label, templates != null ? templates.size() : 0});
 
         if (!canProvision()) {
-            LOGGER.log(Level.INFO, "canProvision=false: max agents reached ({0}/{1})",
+            LOGGER.log(Level.FINE, "canProvision=false: max agents reached ({0}/{1})",
                     new Object[]{countCurrentAgents(), maxConcurrentAgents});
             return false;
         }
@@ -267,14 +267,14 @@ public class SwarmCloud extends Cloud {
             // Log available templates for debugging
             if (templates != null && !templates.isEmpty()) {
                 for (SwarmAgentTemplate t : templates) {
-                    LOGGER.log(Level.INFO, "Available template: name=''{0}'', label=''{1}''",
+                    LOGGER.log(Level.FINE, "Available template: name=''{0}'', label=''{1}''",
                             new Object[]{t.getName(), t.getLabelString()});
                 }
             }
-            LOGGER.log(Level.INFO, "canProvision=false: no template found for label ''{0}''", label);
+            LOGGER.log(Level.FINE, "canProvision=false: no template found for label ''{0}''", label);
             return false;
         }
-        LOGGER.log(Level.INFO, "Found matching template: ''{0}'' for label ''{1}''",
+        LOGGER.log(Level.FINE, "Found matching template: ''{0}'' for label ''{1}''",
                 new Object[]{template.getName(), label});
 
         // Check rate limit
@@ -294,17 +294,17 @@ public class SwarmCloud extends Cloud {
         // Double-check if Jenkins is shutting down (in case canProvision was called earlier)
         Jenkins jenkins = Jenkins.getInstanceOrNull();
         if (jenkins == null || jenkins.isQuietingDown() || jenkins.isTerminating()) {
-            LOGGER.log(Level.INFO, "Skipping provision: Jenkins is shutting down or in quiet mode");
+            LOGGER.log(Level.FINE, "Skipping provision: Jenkins is shutting down or in quiet mode");
             return Collections.emptyList();
         }
 
-        LOGGER.log(Level.INFO, "Provision requested for label: {0}, excessWorkload: {1}",
+        LOGGER.log(Level.FINE, "Provision requested for label: {0}, excessWorkload: {1}",
                 new Object[]{label, excessWorkload});
 
         // Check rate limit
         if (rateLimitEnabled && !ProvisionRateLimiter.canProvision(name, getMaxProvisionsPerMinute(), getMinProvisionIntervalMs())) {
             long waitTime = ProvisionRateLimiter.getWaitTime(name, getMaxProvisionsPerMinute(), getMinProvisionIntervalMs());
-            LOGGER.log(Level.INFO, "Provision rate limited for cloud: {0}, wait time: {1}ms", new Object[]{name, waitTime});
+            LOGGER.log(Level.FINE, "Provision rate limited for cloud: {0}, wait time: {1}ms", new Object[]{name, waitTime});
             return Collections.emptyList();
         }
 
@@ -324,7 +324,7 @@ public class SwarmCloud extends Cloud {
             toProvision = Math.min(toProvision, Math.max(1, maxAllowed));
         }
 
-        LOGGER.log(Level.INFO, "Will provision {0} agents using template: {1}",
+        LOGGER.log(Level.FINE, "Will provision {0} agents using template: {1}",
                 new Object[]{toProvision, template.getName()});
 
         for (int i = 0; i < toProvision; i++) {
@@ -359,7 +359,7 @@ public class SwarmCloud extends Cloud {
 
         @Override
         public Node call() throws Exception {
-            LOGGER.log(Level.INFO, "Provisioning agent: {0}", agentName);
+            LOGGER.log(Level.FINE, "Provisioning agent: {0}", agentName);
 
             // Resolve template inheritance
             SwarmAgentTemplate resolvedTemplate = template.resolve();
@@ -378,7 +378,7 @@ public class SwarmCloud extends Cloud {
                         long delayMs = baseDelayMs * (1L << (attempt - 1));
                         // Cap at 30 seconds
                         delayMs = Math.min(delayMs, 30000L);
-                        LOGGER.log(Level.INFO, "Retry attempt {0}/{1} for agent {2}, waiting {3}ms",
+                        LOGGER.log(Level.FINE, "Retry attempt {0}/{1} for agent {2}, waiting {3}ms",
                                 new Object[]{attempt, maxRetries, agentName, delayMs});
                         Thread.sleep(delayMs);
                     }
@@ -391,7 +391,7 @@ public class SwarmCloud extends Cloud {
                             cloud.getSwarmNetwork()
                     );
 
-                    LOGGER.log(Level.INFO, "Created Docker Swarm service: {0} for agent: {1}",
+                    LOGGER.log(Level.FINE, "Created Docker Swarm service: {0} for agent: {1}",
                             new Object[]{serviceId, agentName});
 
                     // Create Jenkins agent with idle timeout from template

@@ -70,7 +70,7 @@ public class DockerSwarmClient implements Closeable {
         if (credentialsId != null && !credentialsId.isBlank()) {
             DockerServerCredentials credentials = DockerCredentialsHelper.lookupCredentials(credentialsId, dockerHost);
             if (credentials != null) {
-                LOGGER.log(Level.INFO, "Configuring TLS with credentials: {0}", credentialsId);
+                LOGGER.log(Level.FINE, "Configuring TLS with credentials: {0}", credentialsId);
                 try {
                     sslConfig = createSslConfig(credentials);
                     // Note: We don't set withDockerTlsVerify(true) here because that would
@@ -227,7 +227,7 @@ public class DockerSwarmClient implements Closeable {
                                 @NonNull String secret,
                                 @Nullable String networkName) {
 
-        LOGGER.log(Level.INFO, "Creating service for agent: {0}, template: {1}, image: {2}",
+        LOGGER.log(Level.FINE, "Creating service for agent: {0}, template: {1}, image: {2}",
                 new Object[]{agentName, template.getName(), template.getImage()});
 
         // Build environment variables with secret
@@ -254,7 +254,7 @@ public class DockerSwarmClient implements Closeable {
         List<String> args = List.of(jenkinsUrl, secret, agentName);
         containerSpec.withArgs(args);
 
-        LOGGER.log(Level.INFO, "Container args for {0}: {1}", new Object[]{agentName, args});
+        LOGGER.log(Level.FINE, "Container args for {0}: {1}", new Object[]{agentName, args});
 
         // Add working directory
         containerSpec.withDir(template.getRemoteFs());
@@ -354,7 +354,7 @@ public class DockerSwarmClient implements Closeable {
             EndpointSpec endpointSpec = new EndpointSpec().withPorts(ports);
             serviceSpec.withEndpointSpec(endpointSpec);
 
-            LOGGER.log(Level.INFO, "Configured {0} port binding(s) for service {1}",
+            LOGGER.log(Level.FINE, "Configured {0} port binding(s) for service {1}",
                     new Object[]{ports.size(), agentName});
         }
 
@@ -362,7 +362,7 @@ public class DockerSwarmClient implements Closeable {
         CreateServiceResponse response = dockerClient.createServiceCmd(serviceSpec).exec();
         String serviceId = response.getId();
 
-        LOGGER.log(Level.INFO, "Created service: {0} with ID: {1}", new Object[]{agentName, serviceId});
+        LOGGER.log(Level.FINE, "Created service: {0} with ID: {1}", new Object[]{agentName, serviceId});
         template.incrementInstances();
 
         return serviceId;
@@ -384,10 +384,10 @@ public class DockerSwarmClient implements Closeable {
      * Removes a Docker Swarm service.
      */
     public void removeService(@NonNull String serviceId) {
-        LOGGER.log(Level.INFO, "Removing service: {0}", serviceId);
+        LOGGER.log(Level.FINE, "Removing service: {0}", serviceId);
         try {
             dockerClient.removeServiceCmd(serviceId).exec();
-            LOGGER.log(Level.INFO, "Removed service: {0}", serviceId);
+            LOGGER.log(Level.FINE, "Removed service: {0}", serviceId);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to remove service: " + serviceId, e);
             throw new RuntimeException("Failed to remove service: " + serviceId, e);
@@ -910,7 +910,7 @@ public class DockerSwarmClient implements Closeable {
         // Generic Resources (GPU) - logged for future docker-java support
         var genericResources = template.getGenericResources();
         if (!genericResources.isEmpty()) {
-            LOGGER.log(Level.INFO, "Generic resources requested: {0}. " +
+            LOGGER.log(Level.FINE, "Generic resources requested: {0}. " +
                     "Note: Requires Docker daemon configured with node-generic-resources.", genericResources);
             // docker-java 3.3.5 doesn't fully support generic resources in ResourceSpecs.
             // GPU support requires:
@@ -955,7 +955,7 @@ public class DockerSwarmClient implements Closeable {
             // Similar limitation as Seccomp - docker-java has limited direct support
             // AppArmor profiles must be pre-loaded on Docker hosts
             if (!"runtime/default".equalsIgnoreCase(apparmorProfile) && !"unconfined".equalsIgnoreCase(apparmorProfile)) {
-                LOGGER.log(Level.INFO, "Custom AppArmor profile '{0}' must be loaded on Docker hosts.", apparmorProfile);
+                LOGGER.log(Level.FINE, "Custom AppArmor profile '{0}' must be loaded on Docker hosts.", apparmorProfile);
             }
         }
 

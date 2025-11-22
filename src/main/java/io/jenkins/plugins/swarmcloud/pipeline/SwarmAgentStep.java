@@ -302,7 +302,7 @@ public class SwarmAgentStep extends Step implements Serializable {
                         hudson.model.Node node = jenkins.getNode(agentName);
                         if (node instanceof SwarmAgent) {
                             jenkins.removeNode(node);
-                            LOGGER.log(Level.INFO, "Terminated pipeline agent: {0}", agentName);
+                            LOGGER.log(Level.FINE, "Terminated pipeline agent: {0}", agentName);
                         }
                     }
                 } catch (Exception e) {
@@ -364,7 +364,7 @@ public class SwarmAgentStep extends Step implements Serializable {
                         hudson.model.Node node = jenkins.getNode(agentName);
                         if (node instanceof SwarmAgent) {
                             jenkins.removeNode(node);
-                            LOGGER.log(Level.INFO, "Terminated pipeline agent on failure: {0}", agentName);
+                            LOGGER.log(Level.FINE, "Terminated pipeline agent on failure: {0}", agentName);
                         }
                     }
                 } catch (Exception e) {

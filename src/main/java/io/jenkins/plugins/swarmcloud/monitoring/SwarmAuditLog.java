@@ -49,7 +49,7 @@ public class SwarmAuditLog {
                 user
         );
         addEntry(entry);
-        LOGGER.log(Level.INFO, "[AUDIT] PROVISION: cloud={0}, template={1}, agent={2}, serviceId={3}, user={4}",
+        LOGGER.log(Level.FINE, "[AUDIT] PROVISION: cloud={0}, template={1}, agent={2}, serviceId={3}, user={4}",
                 new Object[]{cloudName, templateName, agentName, serviceId, user});
     }
 
@@ -71,7 +71,7 @@ public class SwarmAuditLog {
                 user
         );
         addEntry(entry);
-        LOGGER.log(Level.INFO, "[AUDIT] TERMINATE: cloud={0}, agent={1}, serviceId={2}, reason={3}, user={4}",
+        LOGGER.log(Level.FINE, "[AUDIT] TERMINATE: cloud={0}, agent={1}, serviceId={2}, reason={3}, user={4}",
                 new Object[]{cloudName, agentName, serviceId, reason, user});
     }
 
@@ -113,7 +113,7 @@ public class SwarmAuditLog {
                 user
         );
         addEntry(entry);
-        LOGGER.log(Level.INFO, "[AUDIT] CONFIG_CHANGE: cloud={0}, template={1}, change={2}, user={3}",
+        LOGGER.log(Level.FINE, "[AUDIT] CONFIG_CHANGE: cloud={0}, template={1}, change={2}, user={3}",
                 new Object[]{cloudName, templateName, changeDescription, user});
     }
 
@@ -160,7 +160,7 @@ public class SwarmAuditLog {
         );
         addEntry(entry);
         if (success) {
-            LOGGER.log(Level.INFO, "[AUDIT] CONNECTION_TEST_SUCCESS: cloud={0}, host={1}, user={2}",
+            LOGGER.log(Level.FINE, "[AUDIT] CONNECTION_TEST_SUCCESS: cloud={0}, host={1}, user={2}",
                     new Object[]{cloudName, dockerHost, user});
         } else {
             LOGGER.log(Level.WARNING, "[AUDIT] CONNECTION_TEST_FAILED: cloud={0}, host={1}, error={2}, user={3}",

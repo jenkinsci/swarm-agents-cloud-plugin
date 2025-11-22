@@ -144,8 +144,7 @@ public class SwarmAgent extends AbstractCloudSlave {
     @Override
     protected void _terminate(TaskListener listener) throws IOException, InterruptedException {
         PrintStream logger = listener.getLogger();
-        logger.println("Terminating Swarm agent: " + name);
-        LOGGER.log(Level.INFO, "Terminating Swarm agent: {0}, service: {1}", new Object[]{name, serviceId});
+        LOGGER.log(Level.FINE, "Terminating Swarm agent: {0}, service: {1}", new Object[]{name, serviceId});
 
         // Determine termination reason
         String terminationReason = "Manual termination";
@@ -173,8 +172,7 @@ public class SwarmAgent extends AbstractCloudSlave {
             // Remove Docker Swarm service
             try {
                 cloud.getDockerClient().removeService(serviceId);
-                logger.println("Removed Docker Swarm service: " + serviceId);
-                LOGGER.log(Level.INFO, "Removed Docker Swarm service: {0}", serviceId);
+                LOGGER.log(Level.FINE, "Removed Docker Swarm service: {0}", serviceId);
 
                 // Audit log termination
                 SwarmAuditLog.logTermination(cloudName, name, serviceId, terminationReason);

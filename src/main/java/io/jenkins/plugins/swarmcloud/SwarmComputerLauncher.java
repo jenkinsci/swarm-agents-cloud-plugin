@@ -82,7 +82,7 @@ public class SwarmComputerLauncher extends JNLPLauncher {
             logger.println("Image: " + image);
             logger.println("Connection mode: " + (useWebSocket ? "WebSocket" : "JNLP/TCP"));
 
-            LOGGER.log(Level.INFO, "Launching Swarm agent: {0}, service: {1}, webSocket: {2}",
+            LOGGER.log(Level.FINE, "Launching Swarm agent: {0}, service: {1}, webSocket: {2}",
                     new Object[]{agent.getNodeName(), agent.getServiceId(), useWebSocket});
 
             // The Docker container is already started by the provision() method
@@ -116,7 +116,7 @@ public class SwarmComputerLauncher extends JNLPLauncher {
             if (computer.isOnline()) {
                 long elapsed = (System.currentTimeMillis() - startTime) / 1000;
                 logger.println("Agent connected successfully after " + elapsed + " seconds");
-                LOGGER.log(Level.INFO, "Agent connected: {0} in {1}s", new Object[]{computer.getName(), elapsed});
+                LOGGER.log(Level.FINE, "Agent connected: {0} in {1}s", new Object[]{computer.getName(), elapsed});
                 return;
             }
 
@@ -189,13 +189,12 @@ public class SwarmComputerLauncher extends JNLPLauncher {
 
     @Override
     public void afterDisconnect(SlaveComputer computer, TaskListener listener) {
-        LOGGER.log(Level.INFO, "Agent disconnected: {0}", computer.getName());
-        listener.getLogger().println("Agent disconnected: " + computer.getName());
+        LOGGER.log(Level.FINE, "Agent disconnected: {0}", computer.getName());
     }
 
     @Override
     public void beforeDisconnect(SlaveComputer computer, TaskListener listener) {
-        LOGGER.log(Level.INFO, "Agent about to disconnect: {0}", computer.getName());
+        LOGGER.log(Level.FINE, "Agent about to disconnect: {0}", computer.getName());
     }
 
     /**

@@ -88,12 +88,28 @@
                                             <div class="swarm-stat-label">Failed</div>
                                         </div>
                                         <div class="swarm-stat">
-                                            <div class="swarm-stat-value">${status.formattedUsedMemory} / ${status.formattedMemory}</div>
-                                            <div class="swarm-stat-label">Memory (${String.format("%.1f", status.memoryUsagePercent)}% used)</div>
+                                            <j:choose>
+                                                <j:when test="${status.usedMemory > 0 || status.runningTasks == 0}">
+                                                    <div class="swarm-stat-value">${status.formattedUsedMemory} / ${status.formattedMemory}</div>
+                                                    <div class="swarm-stat-label">Memory (${String.format("%.1f", status.memoryUsagePercent)}% used)</div>
+                                                </j:when>
+                                                <j:otherwise>
+                                                    <div class="swarm-stat-value">— / ${status.formattedMemory}</div>
+                                                    <div class="swarm-stat-label">Memory (reservations not configured)</div>
+                                                </j:otherwise>
+                                            </j:choose>
                                         </div>
                                         <div class="swarm-stat">
-                                            <div class="swarm-stat-value">${status.formattedUsedCpu} / ${status.formattedTotalCpu} cores</div>
-                                            <div class="swarm-stat-label">CPU (${String.format("%.1f", status.cpuUsagePercent)}% used)</div>
+                                            <j:choose>
+                                                <j:when test="${status.usedCpu > 0 || status.runningTasks == 0}">
+                                                    <div class="swarm-stat-value">${status.formattedUsedCpu} / ${status.formattedTotalCpu} cores</div>
+                                                    <div class="swarm-stat-label">CPU (${String.format("%.1f", status.cpuUsagePercent)}% used)</div>
+                                                </j:when>
+                                                <j:otherwise>
+                                                    <div class="swarm-stat-value">— / ${status.formattedTotalCpu} cores</div>
+                                                    <div class="swarm-stat-label">CPU (reservations not configured)</div>
+                                                </j:otherwise>
+                                            </j:choose>
                                         </div>
                                     </div>
 
