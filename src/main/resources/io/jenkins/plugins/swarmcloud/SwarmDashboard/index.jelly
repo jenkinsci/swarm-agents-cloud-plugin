@@ -4,26 +4,271 @@
     <l:layout title="Swarm Agents Dashboard" norefresh="true">
         <l:main-panel>
             <style>
-                .swarm-dashboard { padding: 20px; }
-                .swarm-card { background: var(--card-background); border: 1px solid var(--card-border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-                .swarm-card-header { font-size: 18px; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-                .swarm-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 16px; }
-                .swarm-stat { text-align: center; padding: 12px; background: var(--input-background); border-radius: 4px; }
-                .swarm-stat-value { font-size: 24px; font-weight: 700; }
-                .swarm-stat-label { font-size: 12px; color: var(--text-color-secondary); }
-                .swarm-table { width: 100%; border-collapse: collapse; }
-                .swarm-table th, .swarm-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--card-border-color); }
-                .swarm-table th { font-weight: 600; background: var(--input-background); }
-                .badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-                .badge-success { background: #28a745; color: white; }
-                .badge-warning { background: #ffc107; color: black; }
-                .badge-danger { background: #dc3545; color: white; }
-                .badge-secondary { background: #6c757d; color: white; }
-                .btn-sm { padding: 4px 8px; font-size: 12px; cursor: pointer; border: none; border-radius: 4px; }
-                .btn-refresh { background: var(--btn-primary-bg); color: white; }
-                .btn-danger { background: #dc3545; color: white; }
-                .no-data { text-align: center; padding: 40px; color: var(--text-color-secondary); }
-                .error-message { background: #f8d7da; color: #721c24; padding: 12px; border-radius: 4px; margin-bottom: 16px; }
+                /* shadcn/ui inspired styles */
+                :root {
+                    --radius: 0.5rem;
+                    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+                    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+                }
+
+                .swarm-dashboard {
+                    padding: 1.5rem;
+                    max-width: 1400px;
+                    margin: 0 auto;
+                }
+
+                .swarm-dashboard h1 {
+                    font-size: 1.875rem;
+                    font-weight: 600;
+                    letter-spacing: -0.025em;
+                    margin-bottom: 1.5rem;
+                    color: var(--text-color);
+                }
+
+                .swarm-dashboard h3 {
+                    font-size: 1rem;
+                    font-weight: 600;
+                    margin: 1.5rem 0 0.75rem 0;
+                    color: var(--text-color);
+                }
+
+                /* Card */
+                .swarm-card {
+                    background: var(--card-background, #fff);
+                    border: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                    border-radius: var(--radius);
+                    box-shadow: var(--shadow-sm);
+                    padding: 1.5rem;
+                    margin-bottom: 1.5rem;
+                }
+
+                .swarm-card-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 1.25rem;
+                }
+
+                .swarm-card-header span {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    font-size: 1.125rem;
+                    font-weight: 600;
+                    color: var(--text-color);
+                }
+
+                /* Stats Grid */
+                .swarm-stats {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+                    gap: 1rem;
+                }
+
+                .swarm-stat {
+                    background: var(--input-background, hsl(210 40% 98%));
+                    border: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                    border-radius: calc(var(--radius) - 2px);
+                    padding: 1rem;
+                    text-align: center;
+                    transition: border-color 0.15s ease;
+                }
+
+                .swarm-stat:hover {
+                    border-color: var(--text-color-secondary, hsl(215 20% 65%));
+                }
+
+                .swarm-stat-value {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    letter-spacing: -0.025em;
+                    color: var(--text-color);
+                    line-height: 1.2;
+                }
+
+                .swarm-stat-label {
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    color: var(--text-color-secondary, hsl(215 16% 47%));
+                    margin-top: 0.25rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+
+                /* Table */
+                .swarm-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 0.875rem;
+                }
+
+                .swarm-table thead {
+                    border-bottom: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                }
+
+                .swarm-table th {
+                    padding: 0.75rem 1rem;
+                    text-align: left;
+                    font-weight: 500;
+                    color: var(--text-color-secondary, hsl(215 16% 47%));
+                    background: transparent;
+                }
+
+                .swarm-table td {
+                    padding: 0.75rem 1rem;
+                    border-bottom: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                    color: var(--text-color);
+                }
+
+                .swarm-table tbody tr {
+                    transition: background-color 0.15s ease;
+                }
+
+                .swarm-table tbody tr:hover {
+                    background-color: var(--input-background, hsl(210 40% 98%));
+                }
+
+                .swarm-table tbody tr:last-child td {
+                    border-bottom: none;
+                }
+
+                /* Badges - shadcn style */
+                .badge {
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 0.125rem 0.625rem;
+                    border-radius: 9999px;
+                    font-size: 0.75rem;
+                    font-weight: 500;
+                    line-height: 1.25rem;
+                    transition: background-color 0.15s ease;
+                }
+
+                .badge-success {
+                    background: hsl(142 76% 94%);
+                    color: hsl(142 76% 26%);
+                    border: 1px solid hsl(142 76% 86%);
+                }
+
+                .badge-warning {
+                    background: hsl(48 96% 94%);
+                    color: hsl(32 95% 30%);
+                    border: 1px solid hsl(48 96% 82%);
+                }
+
+                .badge-danger {
+                    background: hsl(0 84% 95%);
+                    color: hsl(0 84% 32%);
+                    border: 1px solid hsl(0 84% 88%);
+                }
+
+                .badge-secondary {
+                    background: hsl(220 14% 96%);
+                    color: hsl(220 9% 46%);
+                    border: 1px solid hsl(220 13% 91%);
+                }
+
+                .badge-info {
+                    background: hsl(199 89% 94%);
+                    color: hsl(199 89% 28%);
+                    border: 1px solid hsl(199 89% 86%);
+                }
+
+                /* Buttons - shadcn style */
+                .btn-sm {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 0.375rem 0.75rem;
+                    font-size: 0.875rem;
+                    font-weight: 500;
+                    border-radius: calc(var(--radius) - 2px);
+                    border: none;
+                    cursor: pointer;
+                    transition: all 0.15s ease;
+                    outline: none;
+                }
+
+                .btn-sm:focus-visible {
+                    outline: 2px solid var(--focus-ring-color, hsl(215 100% 50%));
+                    outline-offset: 2px;
+                }
+
+                .btn-refresh {
+                    background: var(--text-color, hsl(222 47% 11%));
+                    color: hsl(210 40% 98%);
+                }
+
+                .btn-refresh:hover {
+                    background: var(--text-color-secondary, hsl(215 20% 25%));
+                }
+
+                .btn-danger {
+                    background: hsl(0 84% 60%);
+                    color: white;
+                }
+
+                .btn-danger:hover {
+                    background: hsl(0 84% 50%);
+                }
+
+                /* Empty state */
+                .no-data {
+                    text-align: center;
+                    padding: 3rem 1rem;
+                    color: var(--text-color-secondary, hsl(215 16% 47%));
+                }
+
+                .no-data p {
+                    margin: 0.5rem 0;
+                }
+
+                .no-data a {
+                    color: var(--link-color, hsl(215 100% 50%));
+                    text-decoration: none;
+                    font-weight: 500;
+                }
+
+                .no-data a:hover {
+                    text-decoration: underline;
+                }
+
+                /* Error message */
+                .error-message {
+                    background: hsl(0 84% 95%);
+                    color: hsl(0 84% 32%);
+                    border: 1px solid hsl(0 84% 88%);
+                    border-radius: calc(var(--radius) - 2px);
+                    padding: 0.75rem 1rem;
+                    margin-bottom: 1rem;
+                    font-size: 0.875rem;
+                }
+
+                /* Service error text */
+                .swarm-table small {
+                    color: hsl(0 84% 45%);
+                    font-size: 0.75rem;
+                }
+
+                /* Responsive adjustments */
+                @media (max-width: 768px) {
+                    .swarm-dashboard {
+                        padding: 1rem;
+                    }
+
+                    .swarm-stats {
+                        grid-template-columns: repeat(2, 1fr);
+                    }
+
+                    .swarm-table {
+                        font-size: 0.8125rem;
+                    }
+
+                    .swarm-table th,
+                    .swarm-table td {
+                        padding: 0.5rem 0.75rem;
+                    }
+                }
             </style>
 
             <div class="swarm-dashboard">
@@ -31,9 +276,11 @@
 
                 <j:choose>
                     <j:when test="${empty(it.swarmClouds)}">
-                        <div class="no-data">
-                            <p>No Docker Swarm clouds configured.</p>
-                            <p><a href="${rootURL}/manage/cloud/">Configure a Swarm cloud</a></p>
+                        <div class="swarm-card">
+                            <div class="no-data">
+                                <p>No Docker Swarm clouds configured.</p>
+                                <p><a href="${rootURL}/manage/cloud/">Configure a Swarm cloud</a></p>
+                            </div>
                         </div>
                     </j:when>
                     <j:otherwise>
@@ -91,23 +338,23 @@
                                             <j:choose>
                                                 <j:when test="${status.usedMemory > 0 || status.runningTasks == 0}">
                                                     <div class="swarm-stat-value">${status.formattedUsedMemory} / ${status.formattedMemory}</div>
-                                                    <div class="swarm-stat-label">Memory (${String.format("%.1f", status.memoryUsagePercent)}% used)</div>
+                                                    <div class="swarm-stat-label">Memory (${String.format("%.1f", status.memoryUsagePercent)}%)</div>
                                                 </j:when>
                                                 <j:otherwise>
                                                     <div class="swarm-stat-value">— / ${status.formattedMemory}</div>
-                                                    <div class="swarm-stat-label">Memory (reservations not configured)</div>
+                                                    <div class="swarm-stat-label">Memory (N/A)</div>
                                                 </j:otherwise>
                                             </j:choose>
                                         </div>
                                         <div class="swarm-stat">
                                             <j:choose>
                                                 <j:when test="${status.usedCpu > 0 || status.runningTasks == 0}">
-                                                    <div class="swarm-stat-value">${status.formattedUsedCpu} / ${status.formattedTotalCpu} cores</div>
-                                                    <div class="swarm-stat-label">CPU (${String.format("%.1f", status.cpuUsagePercent)}% used)</div>
+                                                    <div class="swarm-stat-value">${status.formattedUsedCpu} / ${status.formattedTotalCpu}</div>
+                                                    <div class="swarm-stat-label">CPU Cores (${String.format("%.1f", status.cpuUsagePercent)}%)</div>
                                                 </j:when>
                                                 <j:otherwise>
-                                                    <div class="swarm-stat-value">— / ${status.formattedTotalCpu} cores</div>
-                                                    <div class="swarm-stat-label">CPU (reservations not configured)</div>
+                                                    <div class="swarm-stat-value">— / ${status.formattedTotalCpu}</div>
+                                                    <div class="swarm-stat-label">CPU Cores (N/A)</div>
                                                 </j:otherwise>
                                             </j:choose>
                                         </div>

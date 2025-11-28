@@ -254,7 +254,8 @@ public class DockerSwarmClient implements Closeable {
         List<String> args = List.of(jenkinsUrl, secret, agentName);
         containerSpec.withArgs(args);
 
-        LOGGER.log(Level.FINE, "Container args for {0}: {1}", new Object[]{agentName, args});
+        // Note: Don't log args as they contain the agent secret
+        LOGGER.log(Level.FINE, "Container args configured for {0}", agentName);
 
         // Add working directory
         containerSpec.withDir(template.getRemoteFs());

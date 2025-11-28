@@ -295,6 +295,7 @@ public class SwarmRestApi implements RootAction {
      * }
      */
     @PUT
+    @POST  // CSRF protection - requires crumb token
     public void doTemplate(StaplerRequest req, StaplerResponse rsp) throws IOException {
         Jenkins.get().checkPermission(Jenkins.ADMINISTER);
 
