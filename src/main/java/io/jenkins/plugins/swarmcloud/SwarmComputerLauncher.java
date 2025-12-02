@@ -1,7 +1,10 @@
 package io.jenkins.plugins.swarmcloud;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import hudson.Extension;
+import hudson.model.Descriptor;
 import hudson.model.TaskListener;
+import hudson.slaves.ComputerLauncher;
 import hudson.slaves.JNLPLauncher;
 import hudson.slaves.SlaveComputer;
 import jenkins.model.Jenkins;
@@ -299,5 +302,19 @@ public class SwarmComputerLauncher extends JNLPLauncher {
 
     public int getConnectionTimeoutSeconds() {
         return connectionTimeoutSeconds;
+    }
+
+    /**
+     * Descriptor for SwarmComputerLauncher.
+     * This descriptor is required for Jenkins to recognize the launcher.
+     */
+    @Extension
+    public static class DescriptorImpl extends Descriptor<ComputerLauncher> {
+
+        @NonNull
+        @Override
+        public String getDisplayName() {
+            return "Docker Swarm Agent Launcher";
+        }
     }
 }

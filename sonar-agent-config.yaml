@@ -1,0 +1,32 @@
+jenkins:
+  clouds:
+    - swarmAgentsCloud:
+        name: "docker-swarm"
+        dockerHost: "tcp://swarm-manager:2376"  # Замените на ваш Docker Swarm host
+        jenkinsUrl: "http://jenkins:8080"        # Замените на ваш Jenkins URL
+        swarmNetwork: "jenkins-network"
+        maxConcurrentAgents: 10
+        templates:
+          # Шаблон для SonarQube Scanner
+          - name: "sonar-scanner"
+            image: "stepa86/sonar-scanner-cli:latest"  # Образ из вашего репозитория
+            labelString: "sonar"                       # Метка 'sonar' для pipeline
+            remoteFs: "/home/jenkins/agent"
+            numExecutors: 1
+            maxInstances: 3
+            cpuLimit: "2.0"
+            memoryLimit: "4g"
+            cpuReservation: "0.5"
+            memoryReservation: "1g"
+            connectionTimeoutSeconds: 600  # 10 минут для подключения
+            idleTimeoutMinutes: 30
+            environmentVariables:
+              - key: "SONAR_HOST_URL"
+                value: "http://sonarqube:9000"  # URL вашего SonarQube сервера
+              - key: "JAVA_OPTS"
+                value: "-Xmx2g"
+            # Если нужны дополнительные монтирования
+            # mounts:
+            #   - type: "volume"
+            #     source: "sonar-cache"
+            #     target: "/opt/sonar-scanner/.sonar/cache"

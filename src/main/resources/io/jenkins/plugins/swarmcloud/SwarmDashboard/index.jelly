@@ -4,17 +4,51 @@
     <l:layout title="Swarm Agents Dashboard" norefresh="true">
         <l:main-panel>
             <style>
-                /* shadcn/ui inspired styles */
+                /* shadcn/ui inspired styles with dark theme support */
                 :root {
                     --radius: 0.5rem;
                     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
                     --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+
+                    /* Light theme colors */
+                    --swarm-bg: #ffffff;
+                    --swarm-card-bg: #ffffff;
+                    --swarm-border: hsl(214 32% 91%);
+                    --swarm-input-bg: hsl(210 40% 98%);
+                    --swarm-text: hsl(222 47% 11%);
+                    --swarm-text-secondary: hsl(215 16% 47%);
+                    --swarm-hover-bg: hsl(210 40% 98%);
+                }
+
+                /* Dark theme colors */
+                @media (prefers-color-scheme: dark) {
+                    :root {
+                        --swarm-bg: hsl(222 47% 11%);
+                        --swarm-card-bg: hsl(217 33% 17%);
+                        --swarm-border: hsl(217 33% 25%);
+                        --swarm-input-bg: hsl(217 33% 20%);
+                        --swarm-text: hsl(210 40% 98%);
+                        --swarm-text-secondary: hsl(215 20% 65%);
+                        --swarm-hover-bg: hsl(217 33% 22%);
+                    }
+                }
+
+                /* Jenkins dark theme detection */
+                [data-theme="dark"] {
+                    --swarm-bg: hsl(222 47% 11%);
+                    --swarm-card-bg: hsl(217 33% 17%);
+                    --swarm-border: hsl(217 33% 25%);
+                    --swarm-input-bg: hsl(217 33% 20%);
+                    --swarm-text: hsl(210 40% 98%);
+                    --swarm-text-secondary: hsl(215 20% 65%);
+                    --swarm-hover-bg: hsl(217 33% 22%);
                 }
 
                 .swarm-dashboard {
                     padding: 1.5rem;
                     max-width: 1400px;
                     margin: 0 auto;
+                    background: var(--swarm-bg);
                 }
 
                 .swarm-dashboard h1 {
@@ -22,20 +56,20 @@
                     font-weight: 600;
                     letter-spacing: -0.025em;
                     margin-bottom: 1.5rem;
-                    color: var(--text-color);
+                    color: var(--swarm-text);
                 }
 
                 .swarm-dashboard h3 {
                     font-size: 1rem;
                     font-weight: 600;
                     margin: 1.5rem 0 0.75rem 0;
-                    color: var(--text-color);
+                    color: var(--swarm-text);
                 }
 
                 /* Card */
                 .swarm-card {
-                    background: var(--card-background, #fff);
-                    border: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                    background: var(--swarm-card-bg);
+                    border: 1px solid var(--swarm-border);
                     border-radius: var(--radius);
                     box-shadow: var(--shadow-sm);
                     padding: 1.5rem;
@@ -55,7 +89,7 @@
                     gap: 0.75rem;
                     font-size: 1.125rem;
                     font-weight: 600;
-                    color: var(--text-color);
+                    color: var(--swarm-text);
                 }
 
                 /* Stats Grid */
@@ -66,8 +100,8 @@
                 }
 
                 .swarm-stat {
-                    background: var(--input-background, hsl(210 40% 98%));
-                    border: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                    background: var(--swarm-input-bg);
+                    border: 1px solid var(--swarm-border);
                     border-radius: calc(var(--radius) - 2px);
                     padding: 1rem;
                     text-align: center;
@@ -75,21 +109,21 @@
                 }
 
                 .swarm-stat:hover {
-                    border-color: var(--text-color-secondary, hsl(215 20% 65%));
+                    border-color: var(--swarm-text-secondary);
                 }
 
                 .swarm-stat-value {
                     font-size: 1.5rem;
                     font-weight: 700;
                     letter-spacing: -0.025em;
-                    color: var(--text-color);
+                    color: var(--swarm-text);
                     line-height: 1.2;
                 }
 
                 .swarm-stat-label {
                     font-size: 0.75rem;
                     font-weight: 500;
-                    color: var(--text-color-secondary, hsl(215 16% 47%));
+                    color: var(--swarm-text-secondary);
                     margin-top: 0.25rem;
                     text-transform: uppercase;
                     letter-spacing: 0.05em;
@@ -103,21 +137,21 @@
                 }
 
                 .swarm-table thead {
-                    border-bottom: 1px solid var(--card-border-color, hsl(214 32% 91%));
+                    border-bottom: 1px solid var(--swarm-border);
                 }
 
                 .swarm-table th {
                     padding: 0.75rem 1rem;
                     text-align: left;
                     font-weight: 500;
-                    color: var(--text-color-secondary, hsl(215 16% 47%));
+                    color: var(--swarm-text-secondary);
                     background: transparent;
                 }
 
                 .swarm-table td {
                     padding: 0.75rem 1rem;
-                    border-bottom: 1px solid var(--card-border-color, hsl(214 32% 91%));
-                    color: var(--text-color);
+                    border-bottom: 1px solid var(--swarm-border);
+                    color: var(--swarm-text);
                 }
 
                 .swarm-table tbody tr {
@@ -125,14 +159,14 @@
                 }
 
                 .swarm-table tbody tr:hover {
-                    background-color: var(--input-background, hsl(210 40% 98%));
+                    background-color: var(--swarm-hover-bg);
                 }
 
                 .swarm-table tbody tr:last-child td {
                     border-bottom: none;
                 }
 
-                /* Badges - shadcn style */
+                /* Badges - shadcn style with dark theme support */
                 .badge {
                     display: inline-flex;
                     align-items: center;
@@ -145,33 +179,33 @@
                 }
 
                 .badge-success {
-                    background: hsl(142 76% 94%);
-                    color: hsl(142 76% 26%);
-                    border: 1px solid hsl(142 76% 86%);
+                    background: hsl(142 76% 36%);
+                    color: hsl(142 76% 96%);
+                    border: 1px solid hsl(142 76% 46%);
                 }
 
                 .badge-warning {
-                    background: hsl(48 96% 94%);
-                    color: hsl(32 95% 30%);
-                    border: 1px solid hsl(48 96% 82%);
+                    background: hsl(32 95% 44%);
+                    color: hsl(48 96% 98%);
+                    border: 1px solid hsl(32 95% 54%);
                 }
 
                 .badge-danger {
-                    background: hsl(0 84% 95%);
-                    color: hsl(0 84% 32%);
-                    border: 1px solid hsl(0 84% 88%);
+                    background: hsl(0 84% 48%);
+                    color: hsl(0 84% 98%);
+                    border: 1px solid hsl(0 84% 58%);
                 }
 
                 .badge-secondary {
-                    background: hsl(220 14% 96%);
-                    color: hsl(220 9% 46%);
-                    border: 1px solid hsl(220 13% 91%);
+                    background: var(--swarm-input-bg);
+                    color: var(--swarm-text-secondary);
+                    border: 1px solid var(--swarm-border);
                 }
 
                 .badge-info {
-                    background: hsl(199 89% 94%);
-                    color: hsl(199 89% 28%);
-                    border: 1px solid hsl(199 89% 86%);
+                    background: hsl(199 89% 40%);
+                    color: hsl(199 89% 98%);
+                    border: 1px solid hsl(199 89% 50%);
                 }
 
                 /* Buttons - shadcn style */
@@ -195,12 +229,12 @@
                 }
 
                 .btn-refresh {
-                    background: var(--text-color, hsl(222 47% 11%));
-                    color: hsl(210 40% 98%);
+                    background: var(--swarm-text);
+                    color: var(--swarm-bg);
                 }
 
                 .btn-refresh:hover {
-                    background: var(--text-color-secondary, hsl(215 20% 25%));
+                    opacity: 0.9;
                 }
 
                 .btn-danger {
@@ -216,7 +250,7 @@
                 .no-data {
                     text-align: center;
                     padding: 3rem 1rem;
-                    color: var(--text-color-secondary, hsl(215 16% 47%));
+                    color: var(--swarm-text-secondary);
                 }
 
                 .no-data p {
@@ -224,7 +258,7 @@
                 }
 
                 .no-data a {
-                    color: var(--link-color, hsl(215 100% 50%));
+                    color: hsl(215 100% 60%);
                     text-decoration: none;
                     font-weight: 500;
                 }
@@ -235,9 +269,9 @@
 
                 /* Error message */
                 .error-message {
-                    background: hsl(0 84% 95%);
-                    color: hsl(0 84% 32%);
-                    border: 1px solid hsl(0 84% 88%);
+                    background: hsl(0 84% 25%);
+                    color: hsl(0 84% 95%);
+                    border: 1px solid hsl(0 84% 35%);
                     border-radius: calc(var(--radius) - 2px);
                     padding: 0.75rem 1rem;
                     margin-bottom: 1rem;
@@ -246,7 +280,7 @@
 
                 /* Service error text */
                 .swarm-table small {
-                    color: hsl(0 84% 45%);
+                    color: hsl(0 84% 60%);
                     font-size: 0.75rem;
                 }
 
