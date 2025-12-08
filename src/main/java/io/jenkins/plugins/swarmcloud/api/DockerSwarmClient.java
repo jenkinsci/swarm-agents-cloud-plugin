@@ -251,11 +251,19 @@ public class DockerSwarmClient implements Closeable {
         // Pass Jenkins URL and agent info as args for images that expect command-line arguments
         // This supports images with entrypoints like: wget $1/jnlpJars/agent.jar
         // Args are passed to the ENTRYPOINT as positional arguments ($1, $2, $3)
-        List<String> args = List.of(jenkinsUrl, secret, agentName);
-        containerSpec.withArgs(args);
-
-        // Note: Don't log args as they contain the agent secret
-        LOGGER.log(Level.FINE, "Container args configured for {0}", agentName);
+        // Skip args if:
+        // - disableContainerArgs is enabled (image uses env vars only)
+        // - custom command is specified (user controls the full command)
+        boolean hasCustomCommand = template.getCommand() != null && !template.getCommand().isBlank();
+        if (!template.isDisableContainerArgs() && !hasCustomCommand) {
+            List<String> args = List.of(jenkinsUrl, secret, agentName);
+            containerSpec.withArgs(args);
+            // Note: Don't log args as they contain the agent secret
+            LOGGER.log(Level.FINE, "Container args configured for {0}", agentName);
+        } else {
+            LOGGER.log(Level.FINE, "Container args disabled for {0} (customCommand={1}, disableArgs={2})",
+                    new Object[]{agentName, hasCustomCommand, template.isDisableContainerArgs()});
+        }
 
         // Add working directory
         containerSpec.withDir(template.getRemoteFs());

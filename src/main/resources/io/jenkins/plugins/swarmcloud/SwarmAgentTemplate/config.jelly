@@ -189,6 +189,11 @@
                 <f:checkbox/>
             </f:entry>
 
+            <f:entry title="Disable Container Args" field="disableContainerArgs"
+                     description="Don't pass Jenkins URL/secret/name as container arguments. Enable this for images that only use environment variables (JENKINS_URL, JENKINS_SECRET, JENKINS_AGENT_NAME).">
+                <f:checkbox/>
+            </f:entry>
+
             <f:entry title="Hostname" field="hostname"
                      description="Container hostname">
                 <f:textbox/>

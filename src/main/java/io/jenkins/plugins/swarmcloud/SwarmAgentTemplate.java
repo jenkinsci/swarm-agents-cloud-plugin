@@ -111,6 +111,10 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     // Port bindings for published ports
     private List<PortBinding> portBindings;  // e.g., 80:8080, :5900
 
+    // Container args control - when true, don't pass args to container entrypoint
+    // Useful for images that only use environment variables (JENKINS_URL, JENKINS_SECRET, etc.)
+    private boolean disableContainerArgs;
+
     // Parent cloud reference
     private transient SwarmCloud parent;
 
@@ -712,6 +716,19 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundSetter
     public void setPrivileged(boolean privileged) {
         this.privileged = privileged;
+    }
+
+    /**
+     * Returns true if container args should be disabled.
+     * When disabled, only environment variables are passed to the container.
+     */
+    public boolean isDisableContainerArgs() {
+        return disableContainerArgs;
+    }
+
+    @DataBoundSetter
+    public void setDisableContainerArgs(boolean disableContainerArgs) {
+        this.disableContainerArgs = disableContainerArgs;
     }
 
     @Nullable
