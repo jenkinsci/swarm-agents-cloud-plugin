@@ -245,7 +245,9 @@ public class DockerSwarmClient implements Closeable {
 
         // Add command if specified
         if (template.getCommand() != null && !template.getCommand().isBlank()) {
-            containerSpec.withCommand(List.of(template.getCommand().split("\\s+")));
+            List<String> commandParts = parseCommand(template.getCommand());
+            containerSpec.withCommand(commandParts);
+            LOGGER.log(Level.FINE, "Container command configured: {0}", commandParts);
         }
 
         // Pass Jenkins URL and agent info as args for images that expect command-line arguments
@@ -391,12 +393,16 @@ public class DockerSwarmClient implements Closeable {
 
     /**
      * Removes a Docker Swarm service.
+     * Handles 404 (not found) gracefully - if service is already gone, that's fine.
      */
     public void removeService(@NonNull String serviceId) {
         LOGGER.log(Level.FINE, "Removing service: {0}", serviceId);
         try {
             dockerClient.removeServiceCmd(serviceId).exec();
             LOGGER.log(Level.FINE, "Removed service: {0}", serviceId);
+        } catch (com.github.dockerjava.api.exception.NotFoundException e) {
+            // Service already removed - this is fine, goal achieved
+            LOGGER.log(Level.FINE, "Service {0} already removed (not found)", serviceId);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to remove service: " + serviceId, e);
             throw new RuntimeException("Failed to remove service: " + serviceId, e);
@@ -1000,6 +1006,45 @@ public class DockerSwarmClient implements Closeable {
         }
 
         return Long.parseLong(memory.trim()) * multiplier;
+    }
+
+    /**
+     * Parses a command string into a list of arguments, respecting quotes.
+     * Supports both single and double quotes.
+     * Examples:
+     *   "sh -c 'echo hello'" -> ["sh", "-c", "echo hello"]
+     *   "sh -c \"curl -sO $URL && java -jar agent.jar\"" -> ["sh", "-c", "curl -sO $URL && java -jar agent.jar"]
+     */
+    @NonNull
+    private List<String> parseCommand(@NonNull String command) {
+        List<String> result = new java.util.ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+
+        for (int i = 0; i < command.length(); i++) {
+            char c = command.charAt(i);
+
+            if (c == '\'' && !inDoubleQuote) {
+                inSingleQuote = !inSingleQuote;
+            } else if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+            } else if (Character.isWhitespace(c) && !inSingleQuote && !inDoubleQuote) {
+                if (current.length() > 0) {
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+            } else {
+                current.append(c);
+            }
+        }
+
+        // Add the last token if any
+        if (current.length() > 0) {
+            result.add(current.toString());
+        }
+
+        return result;
     }
 
     /**

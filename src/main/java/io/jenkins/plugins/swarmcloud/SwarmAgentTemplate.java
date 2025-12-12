@@ -1171,6 +1171,14 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     }
 
     /**
+     * Sets the current instance count directly.
+     * Used for synchronizing with actual service count from Docker Swarm.
+     */
+    public void setCurrentInstances(int count) {
+        getCurrentInstancesCounter().set(Math.max(0, count));
+    }
+
+    /**
      * Generic resource configuration for Docker Swarm (e.g., GPU).
      * Maps to Swarm's GenericResource in task resource requirements.
      */

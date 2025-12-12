@@ -212,6 +212,9 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             status.setHealthy(true);
             status.setLastUpdate(System.currentTimeMillis());
 
+            // Synchronize template instance counters with actual service count
+            synchronizeTemplateCounters(cloud, services);
+
         } catch (Exception e) {
             status.setHealthy(false);
             status.setErrorMessage(e.getMessage());
@@ -251,6 +254,38 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                     }
                 }
                 break;
+            }
+        }
+    }
+
+    /**
+     * Synchronizes template instance counters with actual running services in Docker Swarm.
+     * This ensures the dashboard shows accurate agent counts even after service failures or manual deletions.
+     */
+    private void synchronizeTemplateCounters(SwarmCloud cloud, List<Service> services) {
+        // Count services per template
+        Map<String, Integer> templateServiceCount = new java.util.HashMap<>();
+
+        for (Service service : services) {
+            var serviceSpec = service.getSpec();
+            if (serviceSpec != null && serviceSpec.getLabels() != null) {
+                String templateName = serviceSpec.getLabels().get("jenkins.template");
+                if (templateName != null) {
+                    templateServiceCount.merge(templateName, 1, Integer::sum);
+                }
+            }
+        }
+
+        // Update each template's counter to match actual service count
+        for (var template : cloud.getTemplates()) {
+            String templateName = template.getName();
+            int actualCount = templateServiceCount.getOrDefault(templateName, 0);
+            int currentCount = template.getCurrentInstances();
+
+            if (currentCount != actualCount) {
+                LOGGER.log(Level.INFO, "Synchronizing template ''{0}'' counter: {1} -> {2}",
+                        new Object[]{templateName, currentCount, actualCount});
+                template.setCurrentInstances(actualCount);
             }
         }
     }
