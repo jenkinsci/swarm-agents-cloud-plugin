@@ -133,8 +133,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
 
     /**
      * Gets the currentInstances counter, initializing if needed.
+     * Public for atomic operations from ClusterMonitor.
      */
-    private AtomicInteger getCurrentInstancesCounter() {
+    public AtomicInteger getCurrentInstancesCounter() {
         if (currentInstances == null) {
             currentInstances = new AtomicInteger(0);
         }
@@ -1160,7 +1161,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      * Decrements the current instance count.
      */
     public void decrementInstances() {
-        getCurrentInstancesCounter().decrementAndGet();
+        getCurrentInstancesCounter().updateAndGet(current -> Math.max(0, current - 1));
     }
 
     /**

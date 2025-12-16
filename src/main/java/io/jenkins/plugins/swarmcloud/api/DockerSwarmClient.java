@@ -1009,21 +1009,40 @@ public class DockerSwarmClient implements Closeable {
     }
 
     /**
-     * Parses a command string into a list of arguments, respecting quotes.
-     * Supports both single and double quotes.
+     * Parses a command string into a list of arguments, respecting quotes and escape characters.
+     * Supports both single and double quotes, with backslash escaping in double quotes.
      * Examples:
      *   "sh -c 'echo hello'" -> ["sh", "-c", "echo hello"]
      *   "sh -c \"curl -sO $URL && java -jar agent.jar\"" -> ["sh", "-c", "curl -sO $URL && java -jar agent.jar"]
+     *   "echo \"hello \\\"world\\\"\"" -> ["echo", "hello \"world\""]
      */
     @NonNull
     private List<String> parseCommand(@NonNull String command) {
-        List<String> result = new java.util.ArrayList<>();
+        List<String> result = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inSingleQuote = false;
         boolean inDoubleQuote = false;
 
         for (int i = 0; i < command.length(); i++) {
             char c = command.charAt(i);
+
+            // Handle escape character (backslash)
+            if (c == '\\' && i + 1 < command.length()) {
+                char next = command.charAt(i + 1);
+                // In double quotes, escape specific characters
+                if (inDoubleQuote && (next == '"' || next == '\\' || next == '$' || next == '`')) {
+                    current.append(next);
+                    i++; // skip the escaped character
+                    continue;
+                }
+                // Outside quotes, backslash escapes the next character
+                if (!inSingleQuote && !inDoubleQuote) {
+                    current.append(next);
+                    i++;
+                    continue;
+                }
+                // In single quotes, backslash is literal (fall through to append)
+            }
 
             if (c == '\'' && !inDoubleQuote) {
                 inSingleQuote = !inSingleQuote;
@@ -1044,7 +1063,13 @@ public class DockerSwarmClient implements Closeable {
             result.add(current.toString());
         }
 
-        return result;
+        // Warn about unclosed quotes
+        if (inSingleQuote || inDoubleQuote) {
+            LOGGER.log(Level.WARNING, "Command has unclosed {0} quote: {1}",
+                    new Object[]{inSingleQuote ? "single" : "double", command});
+        }
+
+        return List.copyOf(result);
     }
 
     /**

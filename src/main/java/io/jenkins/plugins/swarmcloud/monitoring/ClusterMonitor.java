@@ -261,6 +261,7 @@ public class ClusterMonitor extends AsyncPeriodicWork {
     /**
      * Synchronizes template instance counters with actual running services in Docker Swarm.
      * This ensures the dashboard shows accurate agent counts even after service failures or manual deletions.
+     * Uses atomic compare-and-set to avoid race conditions with concurrent provisioning.
      */
     private void synchronizeTemplateCounters(SwarmCloud cloud, List<Service> services) {
         // Count services per template
@@ -280,12 +281,24 @@ public class ClusterMonitor extends AsyncPeriodicWork {
         for (var template : cloud.getTemplates()) {
             String templateName = template.getName();
             int actualCount = templateServiceCount.getOrDefault(templateName, 0);
-            int currentCount = template.getCurrentInstances();
+
+            // Use atomic update to avoid race conditions with concurrent provisioning
+            // Only sync if the counter is higher than actual (services removed)
+            // or significantly lower (missed increments)
+            var counter = template.getCurrentInstancesCounter();
+            int currentCount = counter.get();
 
             if (currentCount != actualCount) {
-                LOGGER.log(Level.INFO, "Synchronizing template ''{0}'' counter: {1} -> {2}",
-                        new Object[]{templateName, currentCount, actualCount});
-                template.setCurrentInstances(actualCount);
+                // If current > actual, services were removed - safe to sync down
+                // If current < actual, provisioning happened - only sync if diff > 1
+                // (allows for 1 in-flight provisioning)
+                if (currentCount > actualCount || actualCount - currentCount > 1) {
+                    if (counter.compareAndSet(currentCount, actualCount)) {
+                        LOGGER.log(Level.INFO, "Synchronized template ''{0}'' counter: {1} -> {2}",
+                                new Object[]{templateName, currentCount, actualCount});
+                    }
+                    // If compareAndSet fails, another thread modified the counter - skip this cycle
+                }
             }
         }
     }
