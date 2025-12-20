@@ -1,4 +1,4 @@
-# Maven
+# Maven build
 target/
 pom.xml.tag
 pom.xml.releaseBackup
@@ -6,36 +6,23 @@ pom.xml.versionsBackup
 pom.xml.next
 release.properties
 dependency-reduced-pom.xml
-buildNumber.properties
 .mvn/timing.properties
-.mvn/wrapper/maven-wrapper.jar
+
+# Jenkins plugin artifacts
+*.hpi
+*.jpi
 
 # IDE
 .idea/
 *.iml
-*.ipr
-*.iws
-.project
-.classpath
-.settings/
 .vscode/
-*.swp
-*.swo
-*~
 
-# Jenkins
-work/
-.jenkins/
+# AI assistant
+.claude/
 
-# Build
-*.hpi
-*.jpi
-*.jar
-!src/main/webapp/WEB-INF/lib/*.jar
+# Logs
+*.log
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
