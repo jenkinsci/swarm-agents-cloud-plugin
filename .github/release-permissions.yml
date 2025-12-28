@@ -1,0 +1,19 @@
+# This file should be added to jenkins-infra/repository-permissions-updater
+# as permissions/plugin-swarm-agents-cloud.yml
+#
+# Create a PR to: https://github.com/jenkins-infra/repository-permissions-updater
+# with this file in: permissions/plugin-swarm-agents-cloud.yml
+
+name: "swarm-agents-cloud"
+github: "jenkinsci/swarm-agents-cloud-plugin"
+
+# GitHub CD (for jenkins-infra/github-reusable-workflows)
+cd:
+  enabled: true
+
+developers:
+  - "aronmav"
+
+# Security contacts (optional but recommended)
+# security:
+#   - "aronmav"

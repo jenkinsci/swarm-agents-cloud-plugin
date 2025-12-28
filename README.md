@@ -1,55 +1,95 @@
 # Swarm Agents Cloud Plugin for Jenkins
 
+[![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md)
+[![ru](https://img.shields.io/badge/lang-ru-green.svg)](README.ru.md)
+
 [![Jenkins Plugin](https://img.shields.io/badge/jenkins-plugin-blue.svg)](https://plugins.jenkins.io/)
 [![Java 17+](https://img.shields.io/badge/java-17%2B-blue.svg)](https://adoptium.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Provision Jenkins agents dynamically on Docker Swarm clusters.
+A modern Jenkins plugin for dynamic agent provisioning on Docker Swarm clusters.
+
+## Why This Plugin?
+
+This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](https://github.com/jenkinsci/docker-swarm-plugin) (last updated February 2021, 54+ unresolved issues).
+
+### Comparison with docker-swarm-plugin
+
+| Feature | **swarm-agents-cloud** | docker-swarm-plugin |
+|---------|------------------------|---------------------|
+| **Last Update** | 2025 (active) | 2021 (abandoned) |
+| **Open Issues** | — | 54+ |
+| **Java Version** | 17+ | 8+ |
+| **Jenkins Version** | 2.479.3+ | Outdated |
+| **WebSocket Connection** | ✅ | ❌ |
+| **JCasC Support** | ✅ Full | ❌ |
+| **REST API** | ✅ Full CRUD | ❌ |
+| **Prometheus Metrics** | ✅ | ❌ |
+| **Docker Secrets/Configs** | ✅ | ❌ |
+| **Template Inheritance** | ✅ | ❌ |
+| **GPU Support** | ✅ | ❌ |
+| **Rate Limiting** | ✅ | ❌ |
+| **Health Checks** | ✅ | ❌ |
+| **Security Profiles** | ✅ Seccomp, AppArmor | ❌ |
+| **Pipeline DSL** | ✅ `swarmAgent {}` | ❌ |
+| **Audit Logging** | ✅ | ❌ |
+| **Orphan Cleanup** | ✅ Automatic | ❌ |
+| **Dark Theme Dashboard** | ✅ | ❌ |
+| **TLS Support** | ✅ Working | ⚠️ Broken |
+| **XSS Vulnerabilities** | ✅ Fixed | ⚠️ SECURITY-2811 |
+
+### Key Advantages
+
+- **Modern Stack** — Java 17, WebSocket, current Jenkins API
+- **DevOps-Ready** — JCasC, REST API, Prometheus, Pipeline DSL
+- **Security** — TLS, Secrets, Security Profiles, Input Validation
+- **Reliability** — Rate Limiting, Retry with Backoff, Health Checks, Orphan Cleanup
+- **Active Support** — Regular updates vs abandoned project
 
 ## Features
 
-- **Dynamic Agent Provisioning**: Automatically creates Docker Swarm services when build demand increases
-- **WebSocket Support**: Modern agent connection via WebSocket (no inbound TCP ports required)
-- **TLS/SSL Authentication**: Full support for Docker TLS certificates
-- **Configuration as Code**: Full JCasC compatibility
-- **Resource Management**: CPU/memory limits and reservations per template
-- **Health Checks**: Configurable container health monitoring
-- **Secrets Support**: Docker Swarm secrets integration
-- **Rate Limiting**: Built-in provisioning rate limits to prevent thundering herd
-- **Dashboard**: Real-time cluster monitoring at `/swarm-dashboard`
-- **REST API**: Programmatic management at `/swarm-api`
-- **Template Inheritance**: Inherit settings from parent templates (like K8s `inheritFrom`)
-- **GPU Support**: Generic resource allocation for NVIDIA GPUs and other hardware
-- **Security Profiles**: Seccomp and AppArmor profile configuration
-- **Prometheus Metrics**: `/swarm-api/prometheus` endpoint for monitoring integration
-- **Audit Logging**: Track all provisioning and termination events
-- **Pipeline DSL**: Native `swarmAgent` step for Jenkinsfiles
-- **Retry with Backoff**: Automatic exponential backoff retry on provision failures
-- **Configurable Timeouts**: Per-template connection and idle timeouts
+- **Dynamic Agent Provisioning** — Automatically creates Docker Swarm services on demand
+- **WebSocket Support** — Modern agent connection (no inbound TCP ports required)
+- **TLS/SSL Authentication** — Full Docker TLS certificate support
+- **Configuration as Code** — Complete JCasC compatibility
+- **Resource Management** — CPU/memory limits and reservations per template
+- **Health Checks** — Configurable container health monitoring
+- **Secrets & Configs** — Docker Swarm secrets and configs integration
+- **Rate Limiting** — Built-in provisioning rate limits (thundering herd protection)
+- **Dashboard** — Real-time cluster monitoring at `/swarm-dashboard`
+- **REST API** — Programmatic management at `/swarm-api`
+- **Template Inheritance** — Inherit settings from parent templates (`inheritFrom`)
+- **GPU Support** — Generic resource allocation for NVIDIA GPUs
+- **Security Profiles** — Seccomp and AppArmor configuration
+- **Prometheus Metrics** — `/swarm-api/prometheus` endpoint
+- **Audit Logging** — Track all provisioning events
+- **Pipeline DSL** — Native `swarmAgent` step for Jenkinsfiles
+- **Retry with Backoff** — Automatic exponential backoff on failures
+- **Orphan Cleanup** — Automatic cleanup of stale services
 
 ## Requirements
 
 - Jenkins 2.479.3 or newer
 - Java 17 or newer
-- Docker Swarm cluster (initialized with `docker swarm init`)
+- Docker Swarm cluster (`docker swarm init`)
 
 ## Installation
 
-1. Download the `.hpi` file from releases (or build from source)
-2. Go to **Manage Jenkins** > **Plugins** > **Advanced settings**
+1. Download the `.hpi` file from releases
+2. Go to **Manage Jenkins** → **Plugins** → **Advanced settings**
 3. Upload the `.hpi` file under **Deploy Plugin**
 4. Restart Jenkins
 
-## Configuration
+## Quick Start
 
 ### Via UI
 
-1. Go to **Manage Jenkins** > **Clouds**
-2. Click **New cloud** > **Docker Swarm Agents Cloud**
+1. Go to **Manage Jenkins** → **Clouds**
+2. Click **New cloud** → **Docker Swarm Agents Cloud**
 3. Configure:
    - **Docker Host**: `tcp://your-swarm-manager:2376`
    - **Credentials**: Docker Server Credentials (for TLS)
-   - **Max Concurrent Agents**: Limit total agents from this cloud
+   - **Max Concurrent Agents**: Limit total agents
 
 ### Via Configuration as Code (JCasC)
 
@@ -72,47 +112,41 @@ jenkins:
             maxInstances: 5
             cpuLimit: "2.0"
             memoryLimit: "4g"
-            mounts:
-              - type: "bind"
-                source: "/var/run/docker.sock"
-                target: "/var/run/docker.sock"
-            environmentVariables:
-              - key: "MAVEN_OPTS"
-                value: "-Xmx1g"
+            connectionTimeoutSeconds: 300
+            idleTimeoutMinutes: 30
 ```
 
 ## Agent Templates
-
-Each template defines how agent containers are created:
 
 | Field | Description | Default |
 |-------|-------------|---------|
 | `name` | Template identifier | Required |
 | `image` | Docker image | `jenkins/inbound-agent:latest` |
-| `labelString` | Jenkins labels (space-separated) | - |
+| `labelString` | Jenkins labels (space-separated) | — |
 | `remoteFs` | Agent working directory | `/home/jenkins/agent` |
 | `numExecutors` | Executors per agent | 1 |
 | `maxInstances` | Max containers from template | 5 |
-| `cpuLimit` | CPU limit (e.g., "2.0") | - |
-| `memoryLimit` | Memory limit (e.g., "4g") | - |
+| `cpuLimit` | CPU limit (e.g., "2.0") | — |
+| `memoryLimit` | Memory limit (e.g., "4g") | — |
+| `cpuReservation` | CPU reservation | — |
+| `memoryReservation` | Memory reservation | — |
 
-### Advanced Container Options
+### Advanced Options
 
 | Field | Description |
 |-------|-------------|
-| `privileged` | Run container with elevated privileges |
+| `privileged` | Run with elevated privileges |
 | `user` | Run as specific user (e.g., "1000:1000") |
 | `hostname` | Container hostname |
-| `capAddString` | Linux capabilities to add (CAP_NET_ADMIN, etc.) |
+| `command` | Custom entrypoint command |
+| `disableContainerArgs` | Don't pass args to entrypoint |
+| `capAddString` | Linux capabilities to add |
 | `capDropString` | Linux capabilities to drop |
-| `sysctlsString` | Kernel parameters (one per line) |
-| `dnsServersString` | Custom DNS servers (comma-separated) |
-| `stopSignal` | Signal to stop container (SIGTERM, SIGKILL) |
-| `stopGracePeriod` | Grace period in seconds before force kill |
+| `dnsServersString` | Custom DNS servers |
+| `seccompProfile` | Seccomp security profile |
+| `apparmorProfile` | AppArmor security profile |
 
 ### Template Inheritance
-
-Templates can inherit settings from a parent template using `inheritFrom`:
 
 ```yaml
 templates:
@@ -120,23 +154,28 @@ templates:
     image: "jenkins/inbound-agent:latest"
     cpuLimit: "2.0"
     memoryLimit: "4g"
-    seccompProfile: "default"
     connectionTimeoutSeconds: 300
-    idleTimeoutMinutes: 30
 
   - name: "maven"
-    inheritFrom: "base"          # Inherits all settings from "base"
+    inheritFrom: "base"
     labelString: "maven docker"
     environmentVariables:
       - key: "MAVEN_OPTS"
         value: "-Xmx1g"
 ```
 
-Child templates override parent values only when explicitly set.
+### Docker Secrets
 
-### GPU and Generic Resources
+```yaml
+templates:
+  - name: "with-secrets"
+    secrets:
+      - secretName: "my-secret"
+        fileName: "secret.txt"
+        targetPath: "/run/secrets"
+```
 
-Allocate NVIDIA GPUs or other generic resources:
+### GPU Support
 
 ```yaml
 templates:
@@ -147,33 +186,8 @@ templates:
         value: 1
 ```
 
-Requires Docker Swarm configured with GPU support (`nvidia-container-runtime`).
-
-### Security Profiles
-
-Configure Seccomp and AppArmor profiles (Docker Engine 29+):
-
-```yaml
-templates:
-  - name: "secure-build"
-    seccompProfile: "default"           # or custom profile path
-    apparmorProfile: "runtime/default"  # or "unconfined"
-```
-
-### Timeouts and Retry
-
-| Field | Description | Default |
-|-------|-------------|---------|
-| `connectionTimeoutSeconds` | Max time to wait for agent connection | 300 |
-| `idleTimeoutMinutes` | Idle time before automatic termination | 30 |
-| `provisionRetryCount` | Retries on provision failure | 3 |
-| `provisionRetryDelayMs` | Initial retry delay (exponential backoff) | 1000 |
-
 ## Pipeline DSL
 
-Use `swarmAgent` step in Jenkinsfiles:
-
-### Using Existing Template
 ```groovy
 pipeline {
     agent none
@@ -189,282 +203,66 @@ pipeline {
 }
 ```
 
-### Inline Template Configuration
-```groovy
-swarmAgent(
-    cloud: 'docker-swarm',
-    image: 'jenkins/inbound-agent:alpine',
-    label: 'build',
-    cpuLimit: '2.0',
-    memoryLimit: '4g',
-    idleTimeout: 30
-) {
-    sh 'npm install && npm test'
-}
-```
-
-### Pipeline Step Parameters
-
-| Parameter | Description | Required |
-|-----------|-------------|----------|
-| `cloud` | Name of Swarm cloud | Yes |
-| `template` | Existing template name | No |
-| `image` | Docker image (inline template) | No |
-| `label` | Agent label (inline template) | No |
-| `cpuLimit` | CPU limit | No |
-| `memoryLimit` | Memory limit | No |
-| `idleTimeout` | Idle timeout in minutes | No |
-| `connectionTimeout` | Connection timeout in seconds | No |
-
 ## REST API
 
 Base URL: `http://jenkins/swarm-api/`
 
-### Endpoints
-
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/clouds` | List all Swarm clouds |
-| GET | `/cloud?name=X` | Get cloud details |
+| GET | `/status` | Cluster status |
+| GET | `/clouds` | List all clouds |
 | GET | `/templates?cloud=X` | List templates |
-| GET | `/template?cloud=X&name=Y` | Get single template |
-| GET | `/agents?cloud=X` | List running agents |
-| GET | `/metrics?cloud=X` | Get cluster metrics |
-| GET | `/prometheus` | Prometheus metrics (OpenMetrics format) |
-| GET | `/audit?cloud=X&limit=N` | Audit log entries |
-| POST | `/provision?cloud=X&template=Y` | Provision new agent |
-| PUT | `/template` | Update template configuration |
-
-### Update Template Example
-
-```bash
-curl -X PUT "http://jenkins/swarm-api/template" \
-  -H "Content-Type: application/json" \
-  -u admin:token \
-  -d '{
-    "cloud": "docker-swarm",
-    "template": "maven",
-    "image": "jenkins/inbound-agent:alpine-jdk21"
-  }'
-```
-
-### Supported Update Fields
-
-- `image` - Docker image
-- `labelString` - Labels
-- `maxInstances` - Max instances
-- `numExecutors` - Number of executors
-- `cpuLimit` - CPU limit
-- `memoryLimit` - Memory limit
-- `remoteFs` - Remote filesystem path
+| GET | `/agents?cloud=X` | List agents |
+| GET | `/prometheus` | Prometheus metrics |
+| GET | `/audit?cloud=X` | Audit log |
+| POST | `/provision?cloud=X&template=Y` | Provision agent |
+| PUT | `/template` | Update template |
 
 ## Dashboard
 
-Access the real-time dashboard at `http://jenkins/swarm-dashboard/`
+Access at `http://jenkins/swarm-dashboard/`
 
-Features:
-- Cluster health status
-- Node information (hostname, state, resources)
-- Running services and their states
-- Resource utilization (CPU, Memory)
-- Quick actions (refresh, remove service)
+- Cluster health overview
+- Node status and resources
+- Active services list
+- Dark theme support
 
 ## Prometheus Metrics
 
-Integrate with Prometheus monitoring at `/swarm-api/prometheus`:
-
-```bash
-curl http://jenkins/swarm-api/prometheus
+```text
+http://jenkins/swarm-api/prometheus
 ```
 
-Available metrics:
-- `swarm_clouds_total` - Total configured clouds
-- `swarm_cloud_healthy` - Cloud health status (0/1)
-- `swarm_agents_max/current` - Agent capacity and usage
-- `swarm_nodes_total/ready` - Swarm node counts
-- `swarm_tasks_running/pending/failed` - Task states
-- `swarm_memory_total_bytes/used_bytes` - Memory usage
-- `swarm_cpu_total/used` - CPU usage
-- `swarm_template_instances_max/current` - Per-template metrics
-
-Prometheus scrape config example:
-
-```yaml
-scrape_configs:
-  - job_name: 'jenkins-swarm'
-    metrics_path: '/swarm-api/prometheus'
-    static_configs:
-      - targets: ['jenkins:8080']
-```
-
-## Audit Logging
-
-All provisioning, termination, and configuration events are logged:
-
-```bash
-# Get recent audit entries
-curl "http://jenkins/swarm-api/audit?limit=50"
-
-# Filter by cloud
-curl "http://jenkins/swarm-api/audit?cloud=docker-swarm&limit=100"
-```
-
-Audit events:
-- `PROVISION` - Agent successfully provisioned
-- `TERMINATE` - Agent terminated
-- `PROVISION_FAILED` - Provisioning failure
-- `CONFIG_CHANGE` - Template configuration changed
-- `API_ACCESS` - REST API accessed
-- `CONNECTION_TEST_SUCCESS/FAILED` - Connection test results
-
-## Docker Host URL Format
-
-Use the correct protocol for your Docker connection:
-
-| Connection Type | URL Format | Example |
-|----------------|------------|---------|
-| TCP (remote) | `tcp://host:port` | `tcp://swarm-manager:2376` |
-| Unix socket | `unix:///path/to/socket` | `unix:///var/run/docker.sock` |
-| Named pipe (Windows) | `npipe:////./pipe/name` | `npipe:////./pipe/docker_engine` |
-
-**Important**: Use `tcp://` not `https://` even for TLS connections!
-
-## TLS Configuration
-
-For secure Docker connections:
-
-1. Create Docker Server Credentials in Jenkins:
-   - Go to **Manage Jenkins** > **Credentials**
-   - Add **Docker Server Credentials**
-   - Paste CA certificate, client certificate, and client key
-
-2. Generate certificates (if needed):
-```bash
-# On Docker Swarm manager
-openssl genrsa -out ca-key.pem 4096
-openssl req -new -x509 -days 365 -key ca-key.pem -out ca.pem -subj "/CN=Docker CA"
-openssl genrsa -out client-key.pem 4096
-openssl req -new -key client-key.pem -out client.csr -subj "/CN=client"
-openssl x509 -req -days 365 -in client.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out client-cert.pem
-```
-
-3. Configure Docker daemon (`/etc/docker/daemon.json`):
-```json
-{
-  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2376"],
-  "tls": true,
-  "tlscacert": "/etc/docker/ca.pem",
-  "tlscert": "/etc/docker/server-cert.pem",
-  "tlskey": "/etc/docker/server-key.pem",
-  "tlsverify": true
-}
-```
-
-## Docker Swarm Setup
-
-### Create a Swarm cluster
-
-```bash
-# Initialize swarm on manager
-docker swarm init
-
-# Get join token for workers
-docker swarm join-token worker
-
-# Join workers to swarm
-docker swarm join --token <token> <manager-ip>:2377
-```
-
-### Create overlay network
-
-```bash
-docker network create --driver overlay --attachable jenkins-agents
-```
-
-## Usage in Pipeline
-
-```groovy
-pipeline {
-    agent {
-        label 'maven'
-    }
-    stages {
-        stage('Build') {
-            steps {
-                sh 'mvn clean package'
-            }
-        }
-    }
-}
-```
+Metrics: `swarm_agents_total`, `swarm_agents_active`, `swarm_nodes_total`, `swarm_memory_total_bytes`, etc.
 
 ## Troubleshooting
 
-### Common Errors
+### Enable Debug Logging
+
+**Manage Jenkins** → **System Log** → Add logger `io.jenkins.plugins.swarmcloud` with level `FINE`
+
+### Common Issues
 
 | Error | Solution |
 |-------|----------|
-| "Unsupported protocol scheme: https" | Use `tcp://` instead of `https://` |
-| "Connection refused" | Check Docker daemon is running and API is exposed |
+| "Unsupported protocol scheme: https" | Use `tcp://` not `https://` |
+| "Connection refused" | Check Docker API is exposed |
 | "TLS handshake failed" | Configure Docker Server Credentials |
-| "This node is not a swarm manager" | Run `docker swarm init` on the host |
-| "Unknown host" | Check hostname/IP address |
-| "Connection timed out" | Check firewall rules, ensure port 2376 is open |
-
-### Enable Debug Logging
-
-In Jenkins, go to **Manage Jenkins** > **System Log** > **Add new log recorder**:
-- Logger: `io.jenkins.plugins.swarmcloud`
-- Level: `FINE`
-
-## Comparison with docker-swarm-plugin
-
-This plugin addresses known issues in the [official docker-swarm-plugin](https://plugins.jenkins.io/docker-swarm/):
-
-| Issue | docker-swarm-plugin | swarm-agents-cloud |
-|-------|--------------------|--------------------|
-| XSS vulnerabilities (SECURITY-2811) | Affected | Fixed |
-| TLS support | Broken | Working |
-| Error messages | Generic | Detailed |
-| Quiet-down handling (#113) | Jobs hang | Graceful stop |
-| Resource monitoring (#129) | Always 100% free | Real usage |
-| REST API updates (#123) | Read-only | Full CRUD |
-| Mount parameter (#121) | Missing | Supported |
-| Container limits (#116) | N/A | maxInstances |
-| Extra parameters (#120) | Limited | capabilities, sysctls, dns |
-| Maintenance | Abandoned (5+ years) | Active |
+| "This node is not a swarm manager" | Run `docker swarm init` |
 
 ## Building from Source
 
 ```bash
-# Clone repository
 git clone https://github.com/jenkinsci/swarm-agents-cloud-plugin.git
 cd swarm-agents-cloud-plugin
-
-# Build (skip tests for faster build)
-mvn clean package -Dmaven.test.skip=true
-
-# Plugin will be at target/swarm-agents-cloud.hpi
-
-# Run with local Jenkins
-mvn hpi:run
+mvn clean package -DskipTests
+# Result: target/swarm-agents-cloud.hpi
 ```
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests: `mvn test`
-5. Submit a pull request
+See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Links
-
-- [Jenkins Plugin Site](https://plugins.jenkins.io/)
-- [Issue Tracker](https://github.com/jenkinsci/swarm-agents-cloud-plugin/issues)
-- [Docker Swarm Documentation](https://docs.docker.com/engine/swarm/)
-- [Jenkins Inbound Agent Image](https://hub.docker.com/r/jenkins/inbound-agent)
+MIT License — see [LICENSE](LICENSE)
