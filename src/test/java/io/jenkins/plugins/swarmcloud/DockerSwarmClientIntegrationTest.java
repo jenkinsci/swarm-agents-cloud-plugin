@@ -1,7 +1,6 @@
 package io.jenkins.plugins.swarmcloud;
 
 import io.jenkins.plugins.swarmcloud.api.DockerSwarmClient;
-import io.jenkins.plugins.swarmcloud.api.SwarmMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -58,16 +57,6 @@ class DockerSwarmClientIntegrationTest {
     void testGetNodeCount() {
         int count = client.getNodeCount();
         assertTrue(count >= 0);
-    }
-
-    @Test
-    @Disabled("Requires Docker Swarm mode to be initialized")
-    void testGetClusterMetrics() {
-        SwarmMetrics metrics = client.getClusterMetrics();
-        assertNotNull(metrics);
-        assertTrue(metrics.getTotalNodes() >= 0);
-        assertTrue(metrics.getReadyNodes() >= 0);
-        assertTrue(metrics.getActiveAgents() >= 0);
     }
 
     @Test

@@ -508,55 +508,6 @@ public class DockerSwarmClient implements Closeable {
     }
 
     /**
-     * Gets cluster metrics.
-     */
-    @NonNull
-    public SwarmMetrics getClusterMetrics() {
-        SwarmMetrics metrics = new SwarmMetrics();
-        try {
-            // Get nodes
-            List<SwarmNode> nodes = dockerClient.listSwarmNodesCmd().exec();
-            metrics.setTotalNodes(nodes.size());
-
-            int readyNodes = 0;
-            long totalMemory = 0;
-            double totalCpu = 0;
-
-            for (SwarmNode node : nodes) {
-                SwarmNodeStatus status = node.getStatus();
-                if (status != null && SwarmNodeState.READY.equals(status.getState())) {
-                    readyNodes++;
-                }
-
-                // Get node resources
-                SwarmNodeDescription desc = node.getDescription();
-                SwarmNodeResources resources = (desc != null) ? desc.getResources() : null;
-                if (resources != null) {
-                    Long memoryBytes = resources.getMemoryBytes();
-                    Long nanoCPUs = resources.getNanoCPUs();
-                    if (memoryBytes != null) {
-                        totalMemory += memoryBytes;
-                    }
-                    if (nanoCPUs != null) {
-                        totalCpu += nanoCPUs / 1_000_000_000.0;
-                    }
-                }
-            }
-            metrics.setReadyNodes(readyNodes);
-            metrics.setTotalMemory(totalMemory);
-            metrics.setTotalCpu(totalCpu);
-
-            // Get Jenkins services
-            List<Service> services = listJenkinsServices();
-            metrics.setActiveAgents(services.size());
-
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Failed to get cluster metrics", e);
-        }
-        return metrics;
-    }
-
-    /**
      * Builds environment variables for the agent container.
      */
     private List<String> buildEnvironmentVariables(SwarmAgentTemplate template,

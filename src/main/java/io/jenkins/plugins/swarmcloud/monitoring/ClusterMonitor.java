@@ -146,6 +146,7 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 // Priority: running > pending > complete > shutdown > failed
                 boolean hasRunning = false, hasPending = false, hasFailed = false;
                 boolean hasComplete = false, hasShutdown = false;
+                String lastError = null;
 
                 for (Task task : tasks) {
                     if (task.getStatus() != null) {
@@ -165,9 +166,9 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                             hasShutdown = true;
                         } else if (state == TaskState.FAILED || state == TaskState.REJECTED) {
                             hasFailed = true;
-                            // Capture error message
+                            // Capture error message from failed tasks
                             if (task.getStatus().getErr() != null) {
-                                info.setError(task.getStatus().getErr());
+                                lastError = task.getStatus().getErr();
                             }
                         }
                     }
@@ -177,9 +178,15 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 if (hasRunning) {
                     info.setState("running");
                     runningServices++;
+                    // Clear error if service recovered and has running tasks
+                    // (Docker Swarm automatically restarts failed tasks)
                 } else if (hasPending) {
                     info.setState("pending");
                     pendingServices++;
+                    // Show error for pending services if previous task failed
+                    if (hasFailed && lastError != null) {
+                        info.setError(lastError);
+                    }
                 } else if (hasComplete) {
                     info.setState("complete");
                 } else if (hasShutdown) {
@@ -187,6 +194,10 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 } else if (hasFailed) {
                     info.setState("failed");
                     failedServices++;
+                    // Only show error when service is actually in failed state
+                    if (lastError != null) {
+                        info.setError(lastError);
+                    }
                 } else if (tasks.isEmpty()) {
                     info.setState("stopped");
                 } else {
