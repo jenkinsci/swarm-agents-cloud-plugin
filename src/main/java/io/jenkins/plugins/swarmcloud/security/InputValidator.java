@@ -20,12 +20,12 @@ public final class InputValidator {
     private static final Pattern CLOUD_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{1,64}$");
     private static final Pattern TEMPLATE_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]{1,64}$");
     private static final Pattern DOCKER_IMAGE_PATTERN = Pattern.compile(
-            "^[a-zA-Z0-9][a-zA-Z0-9._/-]*(?::[a-zA-Z0-9._-]+)?(?:@sha256:[a-f0-9]+)?$");
+            "^[a-zA-Z0-9][a-zA-Z0-9._:/-]*(?::[a-zA-Z0-9._-]+)?(?:@sha256:[a-f0-9]+)?$");
     private static final Pattern SERVICE_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9]{25}$");
     private static final Pattern LABEL_PATTERN = Pattern.compile("^[a-zA-Z0-9_ -]{0,200}$");
     private static final Pattern NETWORK_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_.-]{1,64}$");
     private static final Pattern DOCKER_HOST_PATTERN = Pattern.compile(
-            "^(tcp|unix|npipe|ssh)://[a-zA-Z0-9._:/-]+$");
+            "^(tcp|unix|npipe|ssh)://[a-zA-Z0-9._:/@-]+$");
 
     /**
      * Validates a cloud name.

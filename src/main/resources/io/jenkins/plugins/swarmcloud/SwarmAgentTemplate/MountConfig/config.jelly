@@ -1,4 +1,4 @@
-<?jelly escape='true'?>
+<?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
     <f:entry title="Type" field="type"
              description="Mount type: bind, volume, or tmpfs">

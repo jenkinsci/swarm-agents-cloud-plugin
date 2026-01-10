@@ -4,6 +4,8 @@ import hudson.model.Label;
 import hudson.model.Node;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
 import java.util.List;
 import java.util.Set;
@@ -13,12 +15,15 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Unit tests for SwarmAgentTemplate.
  */
+@WithJenkins
 class SwarmAgentTemplateTest {
 
+    private JenkinsRule jenkins;
     private SwarmAgentTemplate template;
 
     @BeforeEach
-    void setUp() {
+    void setUp(JenkinsRule jenkins) {
+        this.jenkins = jenkins;
         template = new SwarmAgentTemplate("test-template");
     }
 

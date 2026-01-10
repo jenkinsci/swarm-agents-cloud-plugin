@@ -1,4 +1,4 @@
-<?jelly escape='true'?>
+<?jelly escape-by-default='true'?>
 <div>
     <p>
         Swarm Agents Cloud plugin provisions Jenkins agents on a Docker Swarm cluster.

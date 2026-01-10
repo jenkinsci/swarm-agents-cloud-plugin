@@ -20,22 +20,18 @@ jenkins:
             cpuReservation: "0.5"
             memoryReservation: "1g"
             hostBinds:
-              - swarmMount:
-                  type: "bind"
-                  source: "/var/cache/maven"
-                  target: "/root/.m2/repository"
-                  readOnly: false
-              - swarmMount:
-                  type: "volume"
-                  source: "jenkins-workspace"
-                  target: "/workspace"
+              - type: "bind"
+                source: "/var/cache/maven"
+                target: "/root/.m2/repository"
+                readOnly: false
+              - type: "volume"
+                source: "jenkins-workspace"
+                target: "/workspace"
             envVars:
-              - swarmEnvVar:
-                  name: "MAVEN_OPTS"
-                  value: "-Xmx2g -XX:+UseG1GC"
-              - swarmEnvVar:
-                  name: "JAVA_HOME"
-                  value: "/opt/java/openjdk"
+              - name: "MAVEN_OPTS"
+                value: "-Xmx2g -XX:+UseG1GC"
+              - name: "JAVA_HOME"
+                value: "/opt/java/openjdk"
             placementConstraints:
               - "node.role==worker"
               - "node.labels.type==build"
@@ -43,9 +39,8 @@ jenkins:
               - "maven-agent"
               - "build-agent"
             configs:
-              - swarmConfig:
-                  configName: "maven-settings"
-                  targetPath: "/root/.m2/settings.xml"
+              - configName: "maven-settings"
+                targetPath: "/root/.m2/settings.xml"
             cacheDirs:
               - "/root/.m2/repository"
               - "/tmp/build-cache"
@@ -59,9 +54,8 @@ jenkins:
             cpuLimit: "1.0"
             memoryLimit: "2g"
             envVars:
-              - swarmEnvVar:
-                  name: "NODE_OPTIONS"
-                  value: "--max-old-space-size=1536"
+              - name: "NODE_OPTIONS"
+                value: "--max-old-space-size=1536"
 
           - name: "docker-builder"
             image: "myregistry/jenkins-agent-dind:latest"
@@ -73,10 +67,9 @@ jenkins:
             cpuLimit: "4.0"
             memoryLimit: "8g"
             hostBinds:
-              - swarmMount:
-                  type: "bind"
-                  source: "/var/run/docker.sock"
-                  target: "/var/run/docker.sock"
-                  readOnly: false
+              - type: "bind"
+                source: "/var/run/docker.sock"
+                target: "/var/run/docker.sock"
+                readOnly: false
             placementConstraints:
               - "node.labels.dind==enabled"
