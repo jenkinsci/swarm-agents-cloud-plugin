@@ -15,8 +15,8 @@ Thank you for your interest in contributing to the Swarm Agents Cloud Plugin!
 
 ```bash
 # Clone the repository
-git clone https://github.com/jenkinsci/swarm-agents-cloud-plugin.git
-cd swarm-agents-cloud-plugin
+git clone https://github.com/AronMav/swarm-agents-cloud.git
+cd swarm-agents-cloud
 
 # Build the plugin
 mvn clean package

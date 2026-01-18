@@ -253,8 +253,8 @@ Metrics: `swarm_agents_total`, `swarm_agents_active`, `swarm_nodes_total`, `swar
 ## Building from Source
 
 ```bash
-git clone https://github.com/jenkinsci/swarm-agents-cloud-plugin.git
-cd swarm-agents-cloud-plugin
+git clone https://github.com/AronMav/swarm-agents-cloud.git
+cd swarm-agents-cloud
 mvn clean package -DskipTests
 # Result: target/swarm-agents-cloud.hpi
 ```

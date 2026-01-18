@@ -253,8 +253,8 @@ http://jenkins/swarm-api/prometheus
 ## Сборка из исходников
 
 ```bash
-git clone https://github.com/jenkinsci/swarm-agents-cloud-plugin.git
-cd swarm-agents-cloud-plugin
+git clone https://github.com/AronMav/swarm-agents-cloud.git
+cd swarm-agents-cloud
 mvn clean package -DskipTests
 # Результат: target/swarm-agents-cloud.hpi
 ```
