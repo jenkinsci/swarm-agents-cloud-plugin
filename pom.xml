@@ -19,7 +19,7 @@
     <name>Swarm Agents Cloud Plugin</name>
     <description>Provision Jenkins agents on Docker Swarm cluster with modern architecture,
         WebSocket support, real monitoring, and Configuration as Code integration.</description>
-    <url>https://github.com/jenkinsci/swarm-agents-cloud-plugin</url>
+    <url>https://github.com/AronMav/swarm-agents-cloud</url>
 
     <licenses>
         <license>
@@ -36,9 +36,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:https://github.com/jenkinsci/swarm-agents-cloud-plugin.git</connection>
-        <developerConnection>scm:git:git@github.com:jenkinsci/swarm-agents-cloud-plugin.git</developerConnection>
-        <url>https://github.com/jenkinsci/swarm-agents-cloud-plugin</url>
+        <connection>scm:git:https://github.com/AronMav/swarm-agents-cloud.git</connection>
+        <developerConnection>scm:git:git@github.com:AronMav/swarm-agents-cloud.git</developerConnection>
+        <url>https://github.com/AronMav/swarm-agents-cloud</url>
         <tag>HEAD</tag>
     </scm>
 
