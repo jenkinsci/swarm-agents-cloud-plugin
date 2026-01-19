@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Versions are automatically generated using Jenkins CD pipeline.
 
+## [1.1.0] - 2026-01-19
+
+### Changed
+
+#### Requirements
+- Minimum Java version increased from 17 to 21
+- Minimum Jenkins version updated to 2.528.3
+
+#### Dashboard UI
+- Migrated to Jenkins Design Library components (`jenkins-button`, `jenkins-table`, `jenkins-empty-state`)
+- Custom `swarm-status` CSS badges using Jenkins CSS variables for theme compatibility
+- Improved dark theme and solarized theme support
+
+#### Dependencies
+- Updated `git-changelist-maven-extension` from 1.8 to 1.13
+- Updated `testcontainers` from 1.20.4 to 2.0.3
+- Updated `testcontainers-junit-jupiter` to 2.0.3
+
+#### Build
+- Removed unnecessary build scripts (`build.cmd`, `run-tests.bat`, `mvnw.cmd`)
+- Removed incomplete Maven Wrapper
+
+### Fixed
+- Fixed non-existent `jenkins-tag` CSS classes in dashboard
+- Fixed CSP compliance issues with adjunct folder structure
+
 ## [1.0.0] - 2025-01-15
 
 ### Added
