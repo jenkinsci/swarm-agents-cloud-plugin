@@ -15,6 +15,7 @@ import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.verb.POST;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1267,7 +1268,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             /**
              * Validates the mount type field.
              */
+            @POST
             public FormValidation doCheckType(@QueryParameter String value) {
+                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
                 if (Util.fixEmptyAndTrim(value) == null) {
                     return FormValidation.error("Type is required. Use: bind, volume, or tmpfs");
                 }
@@ -1281,7 +1284,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             /**
              * Validates the source field.
              */
+            @POST
             public FormValidation doCheckSource(@QueryParameter String value, @QueryParameter String type) {
+                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
                 String t = Util.fixEmptyAndTrim(type);
                 String s = Util.fixEmptyAndTrim(value);
                 if (t != null && t.equalsIgnoreCase("tmpfs")) {
@@ -1296,7 +1301,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             /**
              * Validates the target field.
              */
+            @POST
             public FormValidation doCheckTarget(@QueryParameter String value) {
+                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
                 if (Util.fixEmptyAndTrim(value) == null) {
                     return FormValidation.error("Target path is required");
                 }
@@ -1442,7 +1449,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             return "Docker Swarm Agent Template";
         }
 
+        @POST
         public FormValidation doCheckName(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.error("Name is required");
             }
@@ -1452,14 +1461,18 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckImage(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.error("Docker image is required");
             }
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckMaxInstances(@QueryParameter int value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (value <= 0) {
                 return FormValidation.error("Max instances must be greater than 0");
             }
@@ -1469,7 +1482,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckMemoryLimit(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.ok(); // Optional
             }
@@ -1479,7 +1494,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckCpuLimit(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.ok(); // Optional
             }

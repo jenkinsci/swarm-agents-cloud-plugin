@@ -39,11 +39,8 @@
         <changelist>999999-SNAPSHOT</changelist>
         <jenkins.baseline>2.528</jenkins.baseline>
         <jenkins.version>${jenkins.baseline}.3</jenkins.version>
-        <docker-java.version>3.3.5</docker-java.version>
         <spotbugs.effort>Max</spotbugs.effort>
         <spotbugs.threshold>Low</spotbugs.threshold>
-        <hpi.strictBundledArtifacts>true</hpi.strictBundledArtifacts>
-        <hpi.bundledArtifacts>commons-compress,commons-io,docker-java-api,docker-java-core,docker-java-transport,docker-java-transport-httpclient5,httpclient5,httpcore5,jackson-annotations,jackson-core,jackson-databind,jna</hpi.bundledArtifacts>
         <ban-commons-lang-2.skip>false</ban-commons-lang-2.skip>
     </properties>
 
@@ -60,42 +57,10 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Docker Java Client -->
+        <!-- Docker Java Client via Jenkins Plugin -->
         <dependency>
-            <groupId>com.github.docker-java</groupId>
-            <artifactId>docker-java-core</artifactId>
-            <version>${docker-java.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.google.guava</groupId>
-                    <artifactId>guava</artifactId>
-                </exclusion>
-                <!-- Exclude BouncyCastle - Jenkins provides newer versions -->
-                <exclusion>
-                    <groupId>org.bouncycastle</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <!-- Exclude commons-lang3 - use Jenkins version -->
-                <exclusion>
-                    <groupId>org.apache.commons</groupId>
-                    <artifactId>commons-lang3</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.github.docker-java</groupId>
-            <artifactId>docker-java-transport-httpclient5</artifactId>
-            <version>${docker-java.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>org.jenkins-ci.plugins</groupId>
+            <artifactId>docker-java-api</artifactId>
         </dependency>
 
         <!-- BouncyCastle for TLS certificate handling -->
@@ -120,10 +85,6 @@
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>ssh-credentials</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.jenkins-ci.plugins</groupId>
-            <artifactId>structs</artifactId>
         </dependency>
 
         <!-- Pipeline Support -->

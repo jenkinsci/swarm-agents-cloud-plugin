@@ -231,4 +231,5 @@
         </f:section>
     </f:advanced>
 
+    <f:repeatableDeleteButton />
 </j:jelly>

@@ -1,16 +1,29 @@
 package io.jenkins.plugins.swarmcloud;
 
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.domains.DomainRequirement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
+import hudson.model.Item;
+import hudson.security.ACL;
 import hudson.util.FormValidation;
+import hudson.util.ListBoxModel;
+import jenkins.model.Jenkins;
 import org.jenkinsci.Symbol;
+import org.jenkinsci.plugins.plaincredentials.StringCredentials;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.verb.POST;
+
+import java.util.Collections;
 
 /**
  * Configuration for Docker Swarm Secrets to be mounted in agent containers.
@@ -181,7 +194,9 @@ public class SwarmSecretConfig extends AbstractDescribableImpl<SwarmSecretConfig
             return "Docker Swarm Secret";
         }
 
+        @POST
         public FormValidation doCheckSecretName(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.error("Secret name is required");
             }
@@ -194,7 +209,9 @@ public class SwarmSecretConfig extends AbstractDescribableImpl<SwarmSecretConfig
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckFileMode(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.ok(); // Optional
             }
@@ -204,7 +221,9 @@ public class SwarmSecretConfig extends AbstractDescribableImpl<SwarmSecretConfig
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckTargetPath(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.ok(); // Optional, defaults to /run/secrets/{name}
             }
@@ -212,6 +231,41 @@ public class SwarmSecretConfig extends AbstractDescribableImpl<SwarmSecretConfig
                 return FormValidation.error("Target path must be an absolute path");
             }
             return FormValidation.ok();
+        }
+
+        /**
+         * Fills the credentials dropdown with available string credentials.
+         */
+        @POST
+        public ListBoxModel doFillCredentialsIdItems(
+                @AncestorInPath Item item,
+                @QueryParameter String credentialsId) {
+
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(credentialsId);
+                }
+            }
+
+            result.includeEmptyValue();
+            result.includeMatchingAs(
+                    item instanceof hudson.model.Queue.Task
+                            ? ((hudson.model.Queue.Task) item).getDefaultAuthentication()
+                            : ACL.SYSTEM,
+                    item,
+                    StringCredentials.class,
+                    Collections.<DomainRequirement>emptyList(),
+                    CredentialsMatchers.always()
+            );
+
+            return result;
         }
     }
 }

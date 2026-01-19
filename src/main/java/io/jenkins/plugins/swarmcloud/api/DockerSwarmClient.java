@@ -34,6 +34,7 @@ import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -153,7 +154,7 @@ public class DockerSwarmClient implements Closeable {
 
                     // Create SSL context
                     SSLContext sslContext = SSLContext.getInstance("TLS");
-                    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+                    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
 
                     return sslContext;
                 } catch (Exception e) {

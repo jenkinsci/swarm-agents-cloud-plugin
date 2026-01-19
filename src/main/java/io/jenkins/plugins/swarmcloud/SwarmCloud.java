@@ -542,22 +542,25 @@ public class SwarmCloud extends Cloud {
          * Fills the credentials dropdown with available Docker server credentials.
          *
          * @param dockerHost The Docker host URL for domain requirements
+         * @param credentialsId Current credentials ID value
          * @return ListBoxModel with available credentials
          */
+        @POST
         public ListBoxModel doFillCredentialsIdItems(
                 @AncestorInPath Item item,
-                @QueryParameter String dockerHost) {
+                @QueryParameter String dockerHost,
+                @QueryParameter String credentialsId) {
 
             StandardListBoxModel result = new StandardListBoxModel();
 
             if (item == null) {
                 if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
-                    return result.includeCurrentValue("");
+                    return result.includeCurrentValue(credentialsId);
                 }
             } else {
                 if (!item.hasPermission(Item.EXTENDED_READ)
                         && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
-                    return result.includeCurrentValue("");
+                    return result.includeCurrentValue(credentialsId);
                 }
             }
 
@@ -580,6 +583,7 @@ public class SwarmCloud extends Cloud {
         /**
          * Validates the selected credentials.
          */
+        @POST
         public FormValidation doCheckCredentialsId(
                 @AncestorInPath Item item,
                 @QueryParameter String value,

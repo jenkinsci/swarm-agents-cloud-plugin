@@ -7,10 +7,12 @@ import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
 import hudson.util.FormValidation;
+import jenkins.model.Jenkins;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.verb.POST;
 
 /**
  * Configuration for Docker Swarm Configs to be mounted in agent containers.
@@ -218,7 +220,9 @@ public class SwarmConfigFile extends AbstractDescribableImpl<SwarmConfigFile> {
             return "Docker Swarm Config";
         }
 
+        @POST
         public FormValidation doCheckConfigName(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.error("Config name is required");
             }
@@ -231,7 +235,9 @@ public class SwarmConfigFile extends AbstractDescribableImpl<SwarmConfigFile> {
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckFileMode(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.ok(); // Optional
             }
@@ -241,7 +247,9 @@ public class SwarmConfigFile extends AbstractDescribableImpl<SwarmConfigFile> {
             return FormValidation.ok();
         }
 
+        @POST
         public FormValidation doCheckTargetPath(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
             if (Util.fixEmptyAndTrim(value) == null) {
                 return FormValidation.ok(); // Optional
             }
