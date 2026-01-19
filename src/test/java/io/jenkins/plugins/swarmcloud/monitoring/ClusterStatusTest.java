@@ -277,14 +277,14 @@ class ClusterStatusTest {
     @Test
     void testStatusClassDanger() {
         status.setHealthy(false);
-        assertEquals("danger", status.getStatusClass());
+        assertEquals("red", status.getStatusClass());
     }
 
     @Test
     void testStatusClassWarningFailedTasks() {
         status.setHealthy(true);
         status.setFailedTasks(5);
-        assertEquals("warning", status.getStatusClass());
+        assertEquals("yellow", status.getStatusClass());
     }
 
     @Test
@@ -293,7 +293,7 @@ class ClusterStatusTest {
         status.setFailedTasks(0);
         status.setMaxAgents(10);
         status.setCurrentAgents(10);
-        assertEquals("warning", status.getStatusClass());
+        assertEquals("yellow", status.getStatusClass());
     }
 
     @Test
@@ -302,6 +302,6 @@ class ClusterStatusTest {
         status.setFailedTasks(0);
         status.setMaxAgents(20);
         status.setCurrentAgents(10);
-        assertEquals("success", status.getStatusClass());
+        assertEquals("green", status.getStatusClass());
     }
 }

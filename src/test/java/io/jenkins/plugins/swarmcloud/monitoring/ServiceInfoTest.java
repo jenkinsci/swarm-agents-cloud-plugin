@@ -43,55 +43,55 @@ class ServiceInfoTest {
     @Test
     void testStateClassRunning() {
         serviceInfo.setState("running");
-        assertEquals("success", serviceInfo.getStateClass());
+        assertEquals("green", serviceInfo.getStateClass());
 
         serviceInfo.setState("RUNNING");
-        assertEquals("success", serviceInfo.getStateClass());
+        assertEquals("green", serviceInfo.getStateClass());
     }
 
     @Test
     void testStateClassPending() {
         serviceInfo.setState("pending");
-        assertEquals("warning", serviceInfo.getStateClass());
+        assertEquals("yellow", serviceInfo.getStateClass());
 
         serviceInfo.setState("PENDING");
-        assertEquals("warning", serviceInfo.getStateClass());
+        assertEquals("yellow", serviceInfo.getStateClass());
     }
 
     @Test
     void testStateClassFailed() {
         serviceInfo.setState("failed");
-        assertEquals("danger", serviceInfo.getStateClass());
+        assertEquals("red", serviceInfo.getStateClass());
 
         serviceInfo.setState("FAILED");
-        assertEquals("danger", serviceInfo.getStateClass());
+        assertEquals("red", serviceInfo.getStateClass());
     }
 
     @Test
     void testStateClassComplete() {
         serviceInfo.setState("complete");
-        assertEquals("info", serviceInfo.getStateClass());
+        assertEquals("blue", serviceInfo.getStateClass());
 
         serviceInfo.setState("COMPLETE");
-        assertEquals("info", serviceInfo.getStateClass());
+        assertEquals("blue", serviceInfo.getStateClass());
     }
 
     @Test
     void testStateClassShutdown() {
         serviceInfo.setState("shutdown");
-        assertEquals("secondary", serviceInfo.getStateClass());
+        assertEquals("grey", serviceInfo.getStateClass());
 
         serviceInfo.setState("stopped");
-        assertEquals("secondary", serviceInfo.getStateClass());
+        assertEquals("grey", serviceInfo.getStateClass());
     }
 
     @Test
     void testStateClassUnknown() {
         serviceInfo.setState("unknown");
-        assertEquals("secondary", serviceInfo.getStateClass());
+        assertEquals("grey", serviceInfo.getStateClass());
 
         serviceInfo.setState(null);
-        assertEquals("secondary", serviceInfo.getStateClass());
+        assertEquals("grey", serviceInfo.getStateClass());
     }
 
     @Test
