@@ -29,10 +29,10 @@
                                     <span>
                                         <j:choose>
                                             <j:when test="${status.healthy}">
-                                                <span class="jenkins-tag jenkins-tag--green">Healthy</span>
+                                                <span class="swarm-status swarm-status--success">Healthy</span>
                                             </j:when>
                                             <j:otherwise>
-                                                <span class="jenkins-tag jenkins-tag--red">Error</span>
+                                                <span class="swarm-status swarm-status--error">Error</span>
                                             </j:otherwise>
                                         </j:choose>
                                         ${cloud.name}
@@ -44,7 +44,7 @@
                                 </div>
 
                                 <j:if test="${!status.healthy}">
-                                    <div class="jenkins-alert jenkins-alert--error">
+                                    <div class="swarm-alert swarm-alert--error">
                                         ${status.errorMessage}
                                     </div>
                                 </j:if>
@@ -113,7 +113,7 @@
                                                 <tr>
                                                     <td>${node.hostname}</td>
                                                     <td>
-                                                        <span class="jenkins-tag jenkins-tag--${node.stateClass}">${node.state}</span>
+                                                        <span class="swarm-status swarm-status--${node.stateClass}">${node.state}</span>
                                                     </td>
                                                     <td>${node.role}</td>
                                                     <td>${node.formattedMemory}</td>
@@ -126,7 +126,7 @@
                                     <h3>Services</h3>
                                     <j:choose>
                                         <j:when test="${empty(status.services)}">
-                                            <p class="jenkins-!--empty-state-text">No active services</p>
+                                            <p class="swarm-empty-text">No active services</p>
                                         </j:when>
                                         <j:otherwise>
                                             <table class="jenkins-table">
@@ -145,9 +145,9 @@
                                                             <td>${svc.name}</td>
                                                             <td>${svc.templateName}</td>
                                                             <td>
-                                                                <span class="jenkins-tag jenkins-tag--${svc.stateClass}">${svc.state}</span>
+                                                                <span class="swarm-status swarm-status--${svc.stateClass}">${svc.state}</span>
                                                                 <j:if test="${svc.error != null}">
-                                                                    <br/><small class="jenkins-!--error-text">${svc.error}</small>
+                                                                    <br/><small class="swarm-error-text">${svc.error}</small>
                                                                 </j:if>
                                                             </td>
                                                             <td>${svc.uptime}</td>

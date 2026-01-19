@@ -46,9 +46,9 @@ public class NodeInfo {
     }
 
     public String getStateClass() {
-        if ("READY".equalsIgnoreCase(state)) return "green";
-        if ("DOWN".equalsIgnoreCase(state)) return "red";
-        return "yellow";
+        if ("READY".equalsIgnoreCase(state)) return "success";
+        if ("DOWN".equalsIgnoreCase(state)) return "error";
+        return "warning";
     }
 
     public boolean isReady() {

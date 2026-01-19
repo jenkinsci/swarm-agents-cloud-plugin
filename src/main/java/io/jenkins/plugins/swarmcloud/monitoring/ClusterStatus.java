@@ -175,10 +175,10 @@ public class ClusterStatus {
     }
 
     public String getStatusClass() {
-        if (!healthy) return "red";
-        if (failedTasks > 0) return "yellow";
-        if (currentAgents >= maxAgents) return "yellow";
-        return "green";
+        if (!healthy) return "error";
+        if (failedTasks > 0) return "warning";
+        if (currentAgents >= maxAgents) return "warning";
+        return "success";
     }
 
     private String formatBytes(long bytes) {

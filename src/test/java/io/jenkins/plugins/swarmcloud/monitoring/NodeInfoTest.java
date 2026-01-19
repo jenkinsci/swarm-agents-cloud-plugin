@@ -78,31 +78,31 @@ class NodeInfoTest {
     @Test
     void testStateClassReady() {
         nodeInfo.setState("READY");
-        assertEquals("green", nodeInfo.getStateClass());
+        assertEquals("success", nodeInfo.getStateClass());
 
         nodeInfo.setState("ready");
-        assertEquals("green", nodeInfo.getStateClass());
+        assertEquals("success", nodeInfo.getStateClass());
     }
 
     @Test
     void testStateClassDown() {
         nodeInfo.setState("DOWN");
-        assertEquals("red", nodeInfo.getStateClass());
+        assertEquals("error", nodeInfo.getStateClass());
 
         nodeInfo.setState("down");
-        assertEquals("red", nodeInfo.getStateClass());
+        assertEquals("error", nodeInfo.getStateClass());
     }
 
     @Test
     void testStateClassOther() {
         nodeInfo.setState("PENDING");
-        assertEquals("yellow", nodeInfo.getStateClass());
+        assertEquals("warning", nodeInfo.getStateClass());
 
         nodeInfo.setState("UNKNOWN");
-        assertEquals("yellow", nodeInfo.getStateClass());
+        assertEquals("warning", nodeInfo.getStateClass());
 
         nodeInfo.setState(null);
-        assertEquals("yellow", nodeInfo.getStateClass());
+        assertEquals("warning", nodeInfo.getStateClass());
     }
 
     @Test

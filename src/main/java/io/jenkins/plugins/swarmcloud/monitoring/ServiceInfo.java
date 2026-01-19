@@ -34,13 +34,13 @@ public class ServiceInfo {
     public void setError(String error) { this.error = error; }
 
     public String getStateClass() {
-        if ("running".equalsIgnoreCase(state)) return "green";
-        if ("pending".equalsIgnoreCase(state)) return "yellow";
-        if ("failed".equalsIgnoreCase(state)) return "red";
-        if ("complete".equalsIgnoreCase(state)) return "blue";
-        if ("shutdown".equalsIgnoreCase(state)) return "grey";
-        if ("stopped".equalsIgnoreCase(state)) return "grey";
-        return "grey";
+        if ("running".equalsIgnoreCase(state)) return "success";
+        if ("pending".equalsIgnoreCase(state)) return "warning";
+        if ("failed".equalsIgnoreCase(state)) return "error";
+        if ("complete".equalsIgnoreCase(state)) return "info";
+        if ("shutdown".equalsIgnoreCase(state)) return "neutral";
+        if ("stopped".equalsIgnoreCase(state)) return "neutral";
+        return "neutral";
     }
 
     public boolean isRunning() {
