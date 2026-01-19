@@ -15,15 +15,16 @@
 }
 
 /* Jenkins dark theme detection */
-[data-theme="dark"] :root,
-[data-theme="dark"] {
-    --swarm-bg: hsl(222 47% 11%);
-    --swarm-card-bg: hsl(217 33% 17%);
-    --swarm-border: hsl(217 33% 25%);
-    --swarm-input-bg: hsl(217 33% 20%);
-    --swarm-text: hsl(210 40% 98%);
-    --swarm-text-secondary: hsl(215 20% 65%);
-    --swarm-hover-bg: hsl(217 33% 22%);
+@media (prefers-color-scheme: dark) {
+    :root {
+        --swarm-bg: hsl(222 47% 11%);
+        --swarm-card-bg: hsl(217 33% 17%);
+        --swarm-border: hsl(217 33% 25%);
+        --swarm-input-bg: hsl(217 33% 20%);
+        --swarm-text: hsl(210 40% 98%);
+        --swarm-text-secondary: hsl(215 20% 65%);
+        --swarm-hover-bg: hsl(217 33% 22%);
+    }
 }
 
 .swarm-dashboard {
