@@ -1,9 +1,8 @@
 (function() {
     'use strict';
 
-    // Get rootUrl from data attribute
-    var dashboardElement = document.querySelector('.swarm-dashboard');
-    var rootUrl = dashboardElement ? dashboardElement.getAttribute('data-root-url') : '';
+    // Get rootUrl from head element
+    const rootUrl = document.head.getAttribute("data-rooturl") || '';
 
     function refreshCloud(cloudName) {
         fetch(rootUrl + '/swarm-dashboard/refresh?cloud=' + encodeURIComponent(cloudName), {
@@ -12,21 +11,21 @@
         }).then(function() {
             location.reload();
         }).catch(function(err) {
-            alert('Failed to refresh: ' + err);
+            notificationBar.show('Failed to refresh: ' + err, notificationBar.ERROR);
         });
     }
 
     function removeService(cloudName, serviceId) {
-        if (!confirm('Are you sure you want to remove this service?')) return;
-
-        fetch(rootUrl + '/swarm-dashboard/removeService?cloud=' + encodeURIComponent(cloudName) +
-              '&serviceId=' + encodeURIComponent(serviceId), {
-            method: 'POST',
-            headers: crumb.wrap({})
-        }).then(function() {
-            location.reload();
-        }).catch(function(err) {
-            alert('Failed to remove service: ' + err);
+        dialog.confirm('Are you sure you want to remove this service?', function() {
+            fetch(rootUrl + '/swarm-dashboard/removeService?cloud=' + encodeURIComponent(cloudName) +
+                  '&serviceId=' + encodeURIComponent(serviceId), {
+                method: 'POST',
+                headers: crumb.wrap({})
+            }).then(function() {
+                location.reload();
+            }).catch(function(err) {
+                notificationBar.show('Failed to remove service: ' + err, notificationBar.ERROR);
+            });
         });
     }
 

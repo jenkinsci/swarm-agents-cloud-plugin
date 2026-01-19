@@ -5,7 +5,7 @@
         <l:main-panel>
             <st:adjunct includes="io.jenkins.plugins.swarmcloud.SwarmDashboard.swarm-dashboard"/>
 
-            <div class="swarm-dashboard" data-root-url="${rootURL}">
+            <div class="swarm-dashboard">
                 <h1>Swarm Agents Dashboard</h1>
 
                 <j:choose>
@@ -32,7 +32,7 @@
                                                 <span class="badge badge-danger">Error</span>
                                             </j:otherwise>
                                         </j:choose>
-                                        <j:out value="${cloud.name}"/>
+                                        ${cloud.name}
                                     </span>
                                     <button class="btn-sm btn-refresh js-refresh-cloud"
                                             data-cloud-name="${h.xmlEscape(cloud.name)}">
@@ -42,7 +42,7 @@
 
                                 <j:if test="${!status.healthy}">
                                     <div class="error-message">
-                                        <j:out value="${status.errorMessage}"/>
+                                        ${status.errorMessage}
                                     </div>
                                 </j:if>
 
@@ -108,11 +108,11 @@
                                         <tbody>
                                             <j:forEach var="node" items="${status.nodes}">
                                                 <tr>
-                                                    <td><j:out value="${node.hostname}"/></td>
+                                                    <td>${node.hostname}</td>
                                                     <td>
-                                                        <span class="badge badge-${node.stateClass}"><j:out value="${node.state}"/></span>
+                                                        <span class="badge badge-${node.stateClass}">${node.state}</span>
                                                     </td>
-                                                    <td><j:out value="${node.role}"/></td>
+                                                    <td>${node.role}</td>
                                                     <td>${node.formattedMemory}</td>
                                                     <td>${node.cpuCores} cores</td>
                                                 </tr>
@@ -139,12 +139,12 @@
                                                 <tbody>
                                                     <j:forEach var="svc" items="${status.services}">
                                                         <tr>
-                                                            <td><j:out value="${svc.name}"/></td>
-                                                            <td><j:out value="${svc.templateName}"/></td>
+                                                            <td>${svc.name}</td>
+                                                            <td>${svc.templateName}</td>
                                                             <td>
-                                                                <span class="badge badge-${svc.stateClass}"><j:out value="${svc.state}"/></span>
+                                                                <span class="badge badge-${svc.stateClass}">${svc.state}</span>
                                                                 <j:if test="${svc.error != null}">
-                                                                    <br/><small><j:out value="${svc.error}"/></small>
+                                                                    <br/><small>${svc.error}</small>
                                                                 </j:if>
                                                             </td>
                                                             <td>${svc.uptime}</td>
