@@ -9,6 +9,7 @@ import com.github.dockerjava.api.model.SwarmNodeStatus;
 import com.github.dockerjava.api.model.Task;
 import com.github.dockerjava.api.model.TaskState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.model.AsyncPeriodicWork;
 import hudson.model.TaskListener;
@@ -45,6 +46,8 @@ public class ClusterMonitor extends AsyncPeriodicWork {
     }
 
     @Override
+    @SuppressFBWarnings(value = "ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD",
+            justification = "Volatile static field intentionally used for global last update timestamp")
     protected void execute(TaskListener listener) throws IOException, InterruptedException {
         Jenkins jenkins = Jenkins.getInstanceOrNull();
         if (jenkins == null) return;
@@ -125,23 +128,29 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             long reservedCpuNano = 0;
 
             for (Service service : services) {
+                String serviceId = service.getId();
+                if (serviceId == null) continue; // Skip services without ID
+
                 ServiceInfo info = new ServiceInfo();
-                info.setId(service.getId());
+                info.setId(serviceId);
                 var serviceSpec = service.getSpec();
                 info.setName(serviceSpec != null ? serviceSpec.getName() : "unknown");
 
                 // Extract template name from service labels
-                if (serviceSpec != null && serviceSpec.getLabels() != null) {
-                    info.setTemplateName(serviceSpec.getLabels().get("jenkins.template"));
+                if (serviceSpec != null) {
+                    Map<String, String> labels = serviceSpec.getLabels();
+                    if (labels != null) {
+                        info.setTemplateName(labels.get("jenkins.template"));
+                    }
                 }
 
                 // Extract created time from service
-                if (service.getCreatedAt() != null) {
-                    info.setCreatedTime(service.getCreatedAt().getTime());
+                var createdAt = service.getCreatedAt();
+                if (createdAt != null) {
+                    info.setCreatedTime(createdAt.getTime());
                 }
 
-                List<Task> tasks = dockerClient.getServiceTasks(service.getId());
-                if (tasks == null) tasks = java.util.Collections.emptyList();
+                List<Task> tasks = dockerClient.getServiceTasks(serviceId);
 
                 // Determine service state based on task states
                 // Priority: running > pending > complete > shutdown > failed
@@ -283,10 +292,13 @@ public class ClusterMonitor extends AsyncPeriodicWork {
 
         for (Service service : services) {
             var serviceSpec = service.getSpec();
-            if (serviceSpec != null && serviceSpec.getLabels() != null) {
-                String templateName = serviceSpec.getLabels().get("jenkins.template");
-                if (templateName != null) {
-                    templateServiceCount.merge(templateName, 1, Integer::sum);
+            if (serviceSpec != null) {
+                Map<String, String> labels = serviceSpec.getLabels();
+                if (labels != null) {
+                    String templateName = labels.get("jenkins.template");
+                    if (templateName != null) {
+                        templateServiceCount.merge(templateName, 1, Integer::sum);
+                    }
                 }
             }
         }

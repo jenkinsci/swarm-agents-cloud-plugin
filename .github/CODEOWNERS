@@ -1,1 +1,4 @@
-* @AronMav
+# Code owners for swarm-agents-cloud plugin
+# See: https://help.github.com/articles/about-codeowners/
+
+* @jenkinsci/swarm-agents-cloud-plugin-developers

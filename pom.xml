@@ -41,6 +41,7 @@
         <jenkins.version>${jenkins.baseline}.3</jenkins.version>
         <spotbugs.effort>Max</spotbugs.effort>
         <spotbugs.threshold>Low</spotbugs.threshold>
+        <hpi.strictBundledArtifacts>true</hpi.strictBundledArtifacts>
         <ban-commons-lang-2.skip>false</ban-commons-lang-2.skip>
     </properties>
 

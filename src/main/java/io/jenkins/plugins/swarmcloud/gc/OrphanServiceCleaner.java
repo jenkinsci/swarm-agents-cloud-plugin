@@ -89,10 +89,6 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
 
         try {
             var dockerClient = cloud.getDockerClient();
-            if (dockerClient == null) {
-                listener.error("Docker client not available for cloud: " + cloud.name);
-                return 0;
-            }
 
             // Get all known agent names from Jenkins
             Set<String> knownAgentNames = getKnownAgentNames(jenkins, cloud.name);

@@ -2,6 +2,7 @@ package io.jenkins.plugins.swarmcloud;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.model.Descriptor;
 import hudson.model.TaskListener;
@@ -36,6 +37,8 @@ public class SwarmComputerLauncher extends JNLPLauncher {
     private final String workDir;
     private final int connectionTimeoutSeconds;
 
+    @SuppressFBWarnings(value = "NP_METHOD_PARAMETER_TIGHTENS_ANNOTATION",
+            justification = "Convenience constructor delegates to main constructor with null defaults")
     public SwarmComputerLauncher(@NonNull String cloudName, @NonNull String image) {
         this(cloudName, image, true, null, null, DEFAULT_TIMEOUT_SECONDS);
     }
@@ -108,6 +111,8 @@ public class SwarmComputerLauncher extends JNLPLauncher {
     /**
      * Waits for the agent to connect.
      */
+    @SuppressFBWarnings(value = "RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE",
+            justification = "Defensive null check for Jenkins API method")
     private void waitForConnection(SlaveComputer computer, TaskListener listener, int timeoutSeconds)
             throws IOException, InterruptedException {
 
