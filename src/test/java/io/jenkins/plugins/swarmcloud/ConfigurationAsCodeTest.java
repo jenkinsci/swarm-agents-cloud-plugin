@@ -62,9 +62,9 @@ public class ConfigurationAsCodeTest {
 
         // Test maven template with full configuration
         SwarmAgentTemplate mavenTemplate = cloud.getTemplates().get(0);
-        assertEquals("maven-jdk17", mavenTemplate.getName());
-        assertEquals("myregistry/jenkins-agent-maven:jdk17", mavenTemplate.getImage());
-        assertEquals("maven java17 linux", mavenTemplate.getLabelString());
+        assertEquals("maven-jdk21", mavenTemplate.getName());
+        assertEquals("myregistry/jenkins-agent-maven:jdk21", mavenTemplate.getImage());
+        assertEquals("maven java21 linux", mavenTemplate.getLabelString());
         assertEquals(2, mavenTemplate.getNumExecutors());
         assertEquals(10, mavenTemplate.getMaxInstances());
         assertEquals(Node.Mode.EXCLUSIVE, mavenTemplate.getMode());

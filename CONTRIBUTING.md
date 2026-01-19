@@ -6,10 +6,10 @@ Thank you for your interest in contributing to the Swarm Agents Cloud Plugin!
 
 ### Prerequisites
 
-- JDK 17 or later
-- Maven 3.8+
+- JDK 21 or later
+- Maven 3.9.6+
 - Docker with Swarm mode enabled (for testing)
-- Jenkins 2.479.3 or later
+- Jenkins 2.528.3 or later
 
 ### Building
 

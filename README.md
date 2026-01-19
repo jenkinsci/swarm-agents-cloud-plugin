@@ -4,7 +4,7 @@
 [![ru](https://img.shields.io/badge/lang-ru-green.svg)](README.ru.md)
 
 [![Jenkins Plugin](https://img.shields.io/badge/jenkins-plugin-blue.svg)](https://plugins.jenkins.io/)
-[![Java 17+](https://img.shields.io/badge/java-17%2B-blue.svg)](https://adoptium.net/)
+[![Java 21+](https://img.shields.io/badge/java-21%2B-blue.svg)](https://adoptium.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A modern Jenkins plugin for dynamic agent provisioning on Docker Swarm clusters.
@@ -19,8 +19,8 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 |---------|------------------------|---------------------|
 | **Last Update** | 2025 (active) | 2021 (abandoned) |
 | **Open Issues** | — | 54+ |
-| **Java Version** | 17+ | 8+ |
-| **Jenkins Version** | 2.479.3+ | Outdated |
+| **Java Version** | 21+ | 8+ |
+| **Jenkins Version** | 2.528.3+ | Outdated |
 | **WebSocket Connection** | ✅ | ❌ |
 | **JCasC Support** | ✅ Full | ❌ |
 | **REST API** | ✅ Full CRUD | ❌ |
@@ -40,7 +40,7 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 
 ### Key Advantages
 
-- **Modern Stack** — Java 17, WebSocket, current Jenkins API
+- **Modern Stack** — Java 21, WebSocket, current Jenkins API
 - **DevOps-Ready** — JCasC, REST API, Prometheus, Pipeline DSL
 - **Security** — TLS, Secrets, Security Profiles, Input Validation
 - **Reliability** — Rate Limiting, Retry with Backoff, Health Checks, Orphan Cleanup
@@ -69,16 +69,8 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 
 ## Requirements
 
-- Jenkins 2.479.3 or newer
-- Java 17 or newer
+- Jenkins 2.528.3 or newer (see [Jenkins Java requirements](https://www.jenkins.io/doc/book/platform-information/support-policy-java/) for Java version)
 - Docker Swarm cluster (`docker swarm init`)
-
-## Installation
-
-1. Download the `.hpi` file from releases
-2. Go to **Manage Jenkins** → **Plugins** → **Advanced settings**
-3. Upload the `.hpi` file under **Deploy Plugin**
-4. Restart Jenkins
 
 ## Quick Start
 

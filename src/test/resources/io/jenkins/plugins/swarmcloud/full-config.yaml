@@ -8,9 +8,9 @@ jenkins:
         swarmNetwork: "jenkins-agents-network"
         maxConcurrentAgents: 50
         templates:
-          - name: "maven-jdk17"
-            image: "myregistry/jenkins-agent-maven:jdk17"
-            label: "maven java17 linux"
+          - name: "maven-jdk21"
+            image: "myregistry/jenkins-agent-maven:jdk21"
+            label: "maven java21 linux"
             workingDir: "/home/jenkins/agent"
             numExecutors: 2
             maxInstances: 10

@@ -4,7 +4,7 @@
 [![ru](https://img.shields.io/badge/lang-ru-green.svg)](README.ru.md)
 
 [![Jenkins Plugin](https://img.shields.io/badge/jenkins-plugin-blue.svg)](https://plugins.jenkins.io/)
-[![Java 17+](https://img.shields.io/badge/java-17%2B-blue.svg)](https://adoptium.net/)
+[![Java 21+](https://img.shields.io/badge/java-21%2B-blue.svg)](https://adoptium.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Современный плагин Jenkins для динамического создания агентов в кластерах Docker Swarm.
@@ -19,8 +19,8 @@
 |---------|------------------------|---------------------|
 | **Последнее обновление** | 2025 (активная разработка) | 2021 (заброшен) |
 | **Открытых Issues** | — | 54+ |
-| **Версия Java** | 17+ | 8+ |
-| **Версия Jenkins** | 2.479.3+ | Устаревшая |
+| **Версия Java** | 21+ | 8+ |
+| **Версия Jenkins** | 2.528.3+ | Устаревшая |
 | **WebSocket подключение** | ✅ | ❌ |
 | **Поддержка JCasC** | ✅ Полная | ❌ |
 | **REST API** | ✅ Полный CRUD | ❌ |
@@ -40,7 +40,7 @@
 
 ### Ключевые преимущества
 
-- **Современный стек** — Java 17, WebSocket, актуальный Jenkins API
+- **Современный стек** — Java 21, WebSocket, актуальный Jenkins API
 - **DevOps-Ready** — JCasC, REST API, Prometheus, Pipeline DSL
 - **Безопасность** — TLS, Secrets, Security Profiles, валидация ввода
 - **Надёжность** — Rate Limiting, Retry с backoff, Health Checks, очистка orphan
@@ -69,16 +69,8 @@
 
 ## Требования
 
-- Jenkins 2.479.3 или новее
-- Java 17 или новее
+- Jenkins 2.528.3 или новее (см. [требования Jenkins к Java](https://www.jenkins.io/doc/book/platform-information/support-policy-java/))
 - Docker Swarm кластер (`docker swarm init`)
-
-## Установка
-
-1. Скачайте файл `.hpi` из релизов
-2. Перейдите в **Manage Jenkins** → **Plugins** → **Advanced settings**
-3. Загрузите файл `.hpi` в секции **Deploy Plugin**
-4. Перезапустите Jenkins
 
 ## Быстрый старт
 
