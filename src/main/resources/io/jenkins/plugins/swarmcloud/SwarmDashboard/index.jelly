@@ -4,9 +4,8 @@
     <l:layout title="Swarm Agents Dashboard" norefresh="true">
         <l:main-panel>
             <st:adjunct includes="io.jenkins.plugins.swarmcloud.SwarmDashboard.swarm-dashboard"/>
-            <script>window.swarmDashboard = {rootUrl: '${rootURL}'};</script>
 
-            <div class="swarm-dashboard">
+            <div class="swarm-dashboard" data-root-url="${rootURL}">
                 <h1>Swarm Agents Dashboard</h1>
 
                 <j:choose>

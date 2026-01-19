@@ -28,6 +28,7 @@ import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
+import java.security.SecureRandom;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -154,7 +155,7 @@ public class DockerSwarmClient implements Closeable {
 
                     // Create SSL context
                     SSLContext sslContext = SSLContext.getInstance("TLS");
-                    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
+                    sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
 
                     return sslContext;
                 } catch (Exception e) {

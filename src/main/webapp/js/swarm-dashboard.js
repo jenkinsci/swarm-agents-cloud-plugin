@@ -1,7 +1,9 @@
 (function() {
     'use strict';
 
-    var rootUrl = window.swarmDashboard.rootUrl;
+    // Get rootUrl from data attribute
+    var dashboardElement = document.querySelector('.swarm-dashboard');
+    var rootUrl = dashboardElement ? dashboardElement.getAttribute('data-root-url') : '';
 
     function refreshCloud(cloudName) {
         fetch(rootUrl + '/swarm-dashboard/refresh?cloud=' + encodeURIComponent(cloudName), {
