@@ -275,8 +275,13 @@ public class SwarmAgentStep extends Step implements Serializable {
 
                 return false; // Not complete yet, waiting for body
 
-            } catch (Exception e) {
+            } catch (IOException e) {
                 LOGGER.log(Level.SEVERE, "Failed to provision pipeline agent", e);
+                SwarmAuditLog.logProvisionFailure(swarmCloud.name, agentTemplate.getName(), e.getMessage());
+                getContext().onFailure(e);
+                return true;
+            } catch (RuntimeException e) {
+                LOGGER.log(Level.SEVERE, "Unexpected error provisioning pipeline agent", e);
                 SwarmAuditLog.logProvisionFailure(swarmCloud.name, agentTemplate.getName(), e.getMessage());
                 getContext().onFailure(e);
                 return true;
@@ -337,7 +342,7 @@ public class SwarmAgentStep extends Step implements Serializable {
                 // Don't terminate immediately - let retention strategy handle it
                 // This allows reuse within the same pipeline
                 context.onSuccess(result);
-            } catch (Exception e) {
+            } catch (IOException | InterruptedException e) {
                 context.onFailure(e);
             }
         }

@@ -218,7 +218,7 @@ public final class InputValidator {
             java.net.URI uri = new java.net.URI(url);
             String scheme = uri.getScheme();
             return "http".equals(scheme) || "https".equals(scheme);
-        } catch (Exception e) {
+        } catch (java.net.URISyntaxException e) {
             return false;
         }
     }

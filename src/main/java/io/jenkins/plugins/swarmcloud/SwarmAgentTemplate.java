@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -349,7 +350,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @Nullable
     private static Long parseMemoryToBytes(String memory) {
         if (memory == null || memory.isBlank()) return null;
-        memory = memory.trim().toLowerCase();
+        memory = memory.trim().toLowerCase(Locale.ROOT);
         try {
             long multiplier = 1;
             if (memory.endsWith("g")) {
@@ -1138,7 +1139,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     public String generateAgentName() {
         String shortUuid = UUID.randomUUID().toString().substring(0, 8);
         return String.format("swarm-%s-%d-%s",
-                name.toLowerCase().replaceAll("[^a-z0-9]", "-"),
+                name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "-"),
                 AGENT_COUNTER.incrementAndGet(),
                 shortUuid);
     }
@@ -1270,7 +1271,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
                 if (Util.fixEmptyAndTrim(value) == null) {
                     return FormValidation.error("Type is required. Use: bind, volume, or tmpfs");
                 }
-                String type = value.toLowerCase().trim();
+                String type = value.toLowerCase(Locale.ROOT).trim();
                 if (!type.equals("bind") && !type.equals("volume") && !type.equals("tmpfs")) {
                     return FormValidation.error("Invalid type. Must be: bind, volume, or tmpfs");
                 }
@@ -1353,7 +1354,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         public PortBinding(int publishedPort, int targetPort, String protocol) {
             this.publishedPort = publishedPort;
             this.targetPort = targetPort;
-            this.protocol = protocol != null && !protocol.isBlank() ? protocol.toLowerCase() : "tcp";
+            this.protocol = protocol != null && !protocol.isBlank() ? protocol.toLowerCase(Locale.ROOT) : "tcp";
         }
 
         public int getPublishedPort() {
@@ -1380,7 +1381,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             String protocol = "tcp";
             int slashIdx = str.indexOf('/');
             if (slashIdx > 0) {
-                protocol = str.substring(slashIdx + 1).toLowerCase();
+                protocol = str.substring(slashIdx + 1).toLowerCase(Locale.ROOT);
                 str = str.substring(0, slashIdx);
             }
 

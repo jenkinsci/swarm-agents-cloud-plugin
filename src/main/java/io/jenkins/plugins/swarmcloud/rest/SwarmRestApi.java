@@ -275,8 +275,12 @@ public class SwarmRestApi implements RootAction {
             result.put("status", "provisioning");
 
             writeJsonResponse(rsp, 200, result.toString());
-        } catch (Exception e) {
+        } catch (IOException e) {
             writeJsonError(rsp, 500, "Failed to provision: " + e.getMessage());
+        } catch (hudson.model.Descriptor.FormException e) {
+            writeJsonError(rsp, 400, "Invalid configuration: " + e.getMessage());
+        } catch (RuntimeException e) {
+            writeJsonError(rsp, 500, "Unexpected error: " + e.getMessage());
         }
     }
 

@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -353,7 +354,7 @@ public class DockerSwarmClient implements Closeable {
             for (SwarmAgentTemplate.PortBinding binding : portBindings) {
                 PortConfig portConfig = new PortConfig()
                         .withTargetPort(binding.getTargetPort())
-                        .withProtocol(PortConfigProtocol.valueOf(binding.getProtocol().toUpperCase()))
+                        .withProtocol(PortConfigProtocol.valueOf(binding.getProtocol().toUpperCase(Locale.ROOT)))
                         .withPublishMode(PortConfig.PublishMode.ingress);
 
                 if (binding.getPublishedPort() > 0) {
@@ -558,7 +559,7 @@ public class DockerSwarmClient implements Closeable {
                     .withTarget(config.getTarget())
                     .withReadOnly(config.isReadOnly());
 
-            String mountType = config.getType().toLowerCase();
+            String mountType = config.getType().toLowerCase(Locale.ROOT);
             if ("tmpfs".equals(mountType)) {
                 mount.withType(MountType.TMPFS);
             } else if ("bind".equals(mountType)) {
@@ -940,7 +941,7 @@ public class DockerSwarmClient implements Closeable {
      * Parses memory string to bytes.
      */
     private long parseMemoryBytes(String memory) {
-        memory = memory.toLowerCase().trim();
+        memory = memory.toLowerCase(Locale.ROOT).trim();
         long multiplier = 1;
 
         if (memory.endsWith("g") || memory.endsWith("gb")) {

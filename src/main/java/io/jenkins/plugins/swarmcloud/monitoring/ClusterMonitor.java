@@ -55,12 +55,13 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 try {
                     ClusterStatus status = collectMetrics(swarmCloud);
                     statusCache.put(swarmCloud.name, status);
-                } catch (Exception e) {
+                } catch (RuntimeException e) {
                     LOGGER.log(Level.WARNING, "Failed to collect metrics for cloud: " + swarmCloud.name, e);
                     statusCache.put(swarmCloud.name, ClusterStatus.error(swarmCloud.name, e.getMessage()));
                 }
             }
         }
+        // Update global last update timestamp (volatile field for thread-safe read)
         lastUpdate = System.currentTimeMillis();
     }
 
@@ -226,7 +227,9 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             // Synchronize template instance counters with actual service count
             synchronizeTemplateCounters(cloud, services);
 
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            // Catch runtime exceptions to prevent monitor from failing
+            LOGGER.log(Level.SEVERE, "Error collecting metrics for cloud: " + cloud.name, e);
             status.setHealthy(false);
             status.setErrorMessage(e.getMessage());
         }
@@ -260,7 +263,7 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                     try {
                         ClusterStatus status = monitor.collectMetrics((SwarmCloud) cloud);
                         statusCache.put(cloudName, status);
-                    } catch (Exception e) {
+                    } catch (RuntimeException e) {
                         LOGGER.log(Level.WARNING, "Refresh failed: " + cloudName, e);
                     }
                 }

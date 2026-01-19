@@ -1,5 +1,6 @@
 package io.jenkins.plugins.swarmcloud;
 
+import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.Descriptor;
@@ -42,16 +43,16 @@ public class SwarmComputerLauncher extends JNLPLauncher {
     public SwarmComputerLauncher(@NonNull String cloudName,
                                   @NonNull String image,
                                   boolean useWebSocket,
-                                  String tunnel,
-                                  String workDir) {
+                                  @CheckForNull String tunnel,
+                                  @CheckForNull String workDir) {
         this(cloudName, image, useWebSocket, tunnel, workDir, DEFAULT_TIMEOUT_SECONDS);
     }
 
     public SwarmComputerLauncher(@NonNull String cloudName,
                                   @NonNull String image,
                                   boolean useWebSocket,
-                                  String tunnel,
-                                  String workDir,
+                                  @CheckForNull String tunnel,
+                                  @CheckForNull String workDir,
                                   int connectionTimeoutSeconds) {
         super(tunnel, null); // Pass tunnel to JNLPLauncher
         this.cloudName = cloudName;
@@ -222,7 +223,7 @@ public class SwarmComputerLauncher extends JNLPLauncher {
                                               @NonNull String agentName,
                                               @NonNull String secret,
                                               boolean useWebSocket,
-                                              String workDir) {
+                                              @CheckForNull String workDir) {
         List<String> args = new ArrayList<>();
 
         args.add("-url");
@@ -254,7 +255,7 @@ public class SwarmComputerLauncher extends JNLPLauncher {
                                                              @NonNull String agentName,
                                                              @NonNull String secret,
                                                              boolean useWebSocket,
-                                                             String workDir) {
+                                                             @CheckForNull String workDir) {
         Map<String, String> env = new LinkedHashMap<>();
 
         env.put("JENKINS_URL", jenkinsUrl);

@@ -155,15 +155,21 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
                     LOGGER.log(Level.FINE, "Removing {0} service: {1}", new Object[]{reason, serviceName});
 
                     try {
-                        dockerClient.removeService(service.getId());
-                        cleaned++;
-                    } catch (Exception e) {
+                        String serviceId = service.getId();
+                        if (serviceId != null) {
+                            dockerClient.removeService(serviceId);
+                            cleaned++;
+                        } else {
+                            LOGGER.log(Level.WARNING, "Service ID is null for service: {0}", serviceName);
+                        }
+                    } catch (RuntimeException e) {
                         LOGGER.log(Level.WARNING, "Failed to remove orphan service: " + serviceName, e);
                         listener.error("Failed to remove service " + serviceName + ": " + e.getMessage());
                     }
                 }
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            // Catch runtime exceptions to prevent the periodic task from failing
             LOGGER.log(Level.WARNING, "Error during orphan service cleanup for cloud: " + cloud.name, e);
             listener.error("Error during cleanup: " + e.getMessage());
         }
