@@ -3,7 +3,7 @@
 [![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md)
 [![ru](https://img.shields.io/badge/lang-ru-green.svg)](README.ru.md)
 
-[![Jenkins Plugin](https://img.shields.io/badge/jenkins-plugin-blue.svg)](https://plugins.jenkins.io/)
+[![Jenkins Plugin](https://img.shields.io/jenkins/plugin/v/swarm-agents-cloud.svg)](https://plugins.jenkins.io/swarm-agents-cloud/)
 [![Java 21+](https://img.shields.io/badge/java-21%2B-blue.svg)](https://adoptium.net/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -229,8 +229,8 @@ http://jenkins/swarm-api/prometheus
 ## Сборка из исходников
 
 ```bash
-git clone https://github.com/AronMav/swarm-agents-cloud.git
-cd swarm-agents-cloud
+git clone https://github.com/jenkinsci/swarm-agents-cloud-plugin.git
+cd swarm-agents-cloud-plugin
 mvn clean package -DskipTests
 # Результат: target/swarm-agents-cloud.hpi
 ```
