@@ -82,8 +82,6 @@ Versions are automatically generated using Jenkins CD pipeline.
 ### Planned
 - Multi-cloud support
 - Agent pooling for faster provisioning
-- Custom health checks
-- Extended metrics
 
 [1.0.0]: https://github.com/AronMav/swarm-agents-cloud/releases/tag/v1.0.0
 [Unreleased]: https://github.com/AronMav/swarm-agents-cloud/compare/v1.0.0...HEAD

@@ -47,9 +47,13 @@ src/
 ├── main/
 │   ├── java/io/jenkins/plugins/swarmcloud/
 │   │   ├── api/           # Docker Swarm API client
-│   │   ├── metrics/       # Prometheus metrics
+│   │   ├── config/        # Docker credentials helper
+│   │   ├── gc/            # Orphan service cleanup
+│   │   ├── monitoring/    # Prometheus metrics & audit logging
 │   │   ├── pipeline/      # Pipeline step support
+│   │   ├── ratelimit/     # Rate limiting
 │   │   ├── rest/          # REST API endpoints
+│   │   ├── security/      # Input validation
 │   │   └── ...            # Core plugin classes
 │   └── resources/
 │       └── io/jenkins/plugins/swarmcloud/
