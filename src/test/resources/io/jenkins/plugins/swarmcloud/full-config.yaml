@@ -20,11 +20,11 @@ jenkins:
             cpuReservation: "0.5"
             memoryReservation: "1g"
             hostBinds:
-              - type: "bind"
+              - type: BIND
                 source: "/var/cache/maven"
                 target: "/root/.m2/repository"
                 readOnly: false
-              - type: "volume"
+              - type: VOLUME
                 source: "jenkins-workspace"
                 target: "/workspace"
             envVars:
@@ -67,7 +67,7 @@ jenkins:
             cpuLimit: "4.0"
             memoryLimit: "8g"
             hostBinds:
-              - type: "bind"
+              - type: BIND
                 source: "/var/run/docker.sock"
                 target: "/var/run/docker.sock"
                 readOnly: false

@@ -563,14 +563,14 @@ public class DockerSwarmClient implements Closeable {
                     .withTarget(config.getTarget())
                     .withReadOnly(config.isReadOnly());
 
-            String mountType = config.getType().toLowerCase(Locale.ROOT);
-            if ("tmpfs".equals(mountType)) {
+            SwarmAgentTemplate.SwarmMountType mountType = config.getType();
+            if (mountType == SwarmAgentTemplate.SwarmMountType.TMPFS) {
                 mount.withType(MountType.TMPFS);
-            } else if ("bind".equals(mountType)) {
+            } else if (mountType == SwarmAgentTemplate.SwarmMountType.BIND) {
                 mount.withType(MountType.BIND);
                 mount.withSource(config.getSource());
             } else {
-                // Default to VOLUME for "volume" or any unrecognized type
+                // Default to VOLUME
                 mount.withType(MountType.VOLUME);
                 mount.withSource(config.getSource());
             }

@@ -76,12 +76,12 @@ public class ConfigurationAsCodeTest {
         // Test mounts (via hostBinds alias)
         List<SwarmAgentTemplate.MountConfig> mounts = mavenTemplate.getMounts();
         assertEquals(2, mounts.size());
-        assertEquals("bind", mounts.get(0).getType());
+        assertEquals(SwarmAgentTemplate.SwarmMountType.BIND, mounts.get(0).getType());
         assertEquals("/var/cache/maven", mounts.get(0).getSource());
         assertEquals("/root/.m2/repository", mounts.get(0).getTarget());
         assertFalse(mounts.get(0).isReadOnly());
 
-        assertEquals("volume", mounts.get(1).getType());
+        assertEquals(SwarmAgentTemplate.SwarmMountType.VOLUME, mounts.get(1).getType());
         assertEquals("jenkins-workspace", mounts.get(1).getSource());
         assertEquals("/workspace", mounts.get(1).getTarget());
 

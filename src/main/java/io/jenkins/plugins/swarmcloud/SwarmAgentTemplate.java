@@ -1220,22 +1220,46 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     }
 
     /**
+     * Mount type enum for Docker volumes.
+     */
+    public enum SwarmMountType {
+        BIND("bind"),
+        VOLUME("volume"),
+        TMPFS("tmpfs");
+
+        private final String value;
+
+        SwarmMountType(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
+    /**
      * Mount configuration for Docker volumes.
      */
     public static class MountConfig extends AbstractDescribableImpl<MountConfig> {
-        private final String type; // bind, volume, tmpfs
+        private final SwarmMountType type;
         private final String source;
         private final String target;
         private boolean readOnly;
 
         @DataBoundConstructor
-        public MountConfig(String type, String source, String target) {
+        public MountConfig(SwarmMountType type, String source, String target) {
             this.type = type;
             this.source = source;
             this.target = target;
         }
 
-        public String getType() {
+        public SwarmMountType getType() {
             return type;
         }
 
@@ -1266,30 +1290,13 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             }
 
             /**
-             * Validates the mount type field.
-             */
-            @POST
-            public FormValidation doCheckType(@QueryParameter String value) {
-                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-                if (Util.fixEmptyAndTrim(value) == null) {
-                    return FormValidation.error("Type is required. Use: bind, volume, or tmpfs");
-                }
-                String type = value.toLowerCase(Locale.ROOT).trim();
-                if (!type.equals("bind") && !type.equals("volume") && !type.equals("tmpfs")) {
-                    return FormValidation.error("Invalid type. Must be: bind, volume, or tmpfs");
-                }
-                return FormValidation.ok();
-            }
-
-            /**
              * Validates the source field.
              */
             @POST
-            public FormValidation doCheckSource(@QueryParameter String value, @QueryParameter String type) {
+            public FormValidation doCheckSource(@QueryParameter String value, @QueryParameter SwarmMountType type) {
                 Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-                String t = Util.fixEmptyAndTrim(type);
                 String s = Util.fixEmptyAndTrim(value);
-                if (t != null && t.equalsIgnoreCase("tmpfs")) {
+                if (type == SwarmMountType.TMPFS) {
                     return FormValidation.ok(); // Source not needed for tmpfs
                 }
                 if (s == null) {

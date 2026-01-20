@@ -16,7 +16,7 @@
     }
 
     function removeService(cloudName, serviceId) {
-        dialog.confirm('Are you sure you want to remove this service?', function() {
+        dialog.confirm('Are you sure you want to remove this service?').then(function() {
             fetch(rootUrl + '/swarm-dashboard/removeService?cloud=' + encodeURIComponent(cloudName) +
                   '&serviceId=' + encodeURIComponent(serviceId), {
                 method: 'POST',

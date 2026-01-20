@@ -96,20 +96,20 @@ class SwarmAgentTemplateTest {
     @Test
     void testMounts() {
         SwarmAgentTemplate.MountConfig mount1 = new SwarmAgentTemplate.MountConfig(
-                "volume", "maven-cache", "/root/.m2");
+                SwarmAgentTemplate.SwarmMountType.VOLUME, "maven-cache", "/root/.m2");
         SwarmAgentTemplate.MountConfig mount2 = new SwarmAgentTemplate.MountConfig(
-                "bind", "/host/path", "/container/path");
+                SwarmAgentTemplate.SwarmMountType.BIND, "/host/path", "/container/path");
         mount2.setReadOnly(true);
 
         template.setMounts(List.of(mount1, mount2));
 
         assertEquals(2, template.getMounts().size());
-        assertEquals("volume", template.getMounts().get(0).getType());
+        assertEquals(SwarmAgentTemplate.SwarmMountType.VOLUME, template.getMounts().get(0).getType());
         assertEquals("maven-cache", template.getMounts().get(0).getSource());
         assertEquals("/root/.m2", template.getMounts().get(0).getTarget());
         assertFalse(template.getMounts().get(0).isReadOnly());
 
-        assertEquals("bind", template.getMounts().get(1).getType());
+        assertEquals(SwarmAgentTemplate.SwarmMountType.BIND, template.getMounts().get(1).getType());
         assertTrue(template.getMounts().get(1).isReadOnly());
     }
 

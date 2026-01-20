@@ -10,15 +10,11 @@
 
                 <j:choose>
                     <j:when test="${empty(it.swarmClouds)}">
-                        <div class="jenkins-!--empty-state-container">
-                            <div class="jenkins-empty-state">
-                                <h2>No Docker Swarm clouds configured</h2>
-                                <p>Configure a Swarm cloud to start provisioning agents dynamically.</p>
-                                <a href="${rootURL}/manage/cloud/" class="jenkins-button jenkins-button--primary">
-                                    Configure Cloud
-                                </a>
-                            </div>
-                        </div>
+                        <l:notice title="No Docker Swarm clouds configured" icon="symbol-cloud-outline plugin-ionicons-api">
+                            <a href="${rootURL}/manage/cloud/" class="jenkins-button jenkins-button--primary">
+                                Create Swarm Cloud
+                            </a>
+                        </l:notice>
                     </j:when>
                     <j:otherwise>
                         <j:forEach var="cloud" items="${it.swarmClouds}">
@@ -44,7 +40,7 @@
                                 </div>
 
                                 <j:if test="${!status.healthy}">
-                                    <div class="swarm-alert swarm-alert--error">
+                                    <div class="jenkins-alert jenkins-alert-danger">
                                         ${status.errorMessage}
                                     </div>
                                 </j:if>
@@ -152,7 +148,7 @@
                                                             </td>
                                                             <td>${svc.uptime}</td>
                                                             <td>
-                                                                <button class="jenkins-button jenkins-button--destructive js-remove-service"
+                                                                <button class="jenkins-button jenkins-!-destructive-color js-remove-service"
                                                                         data-cloud-name="${h.xmlEscape(cloud.name)}"
                                                                         data-service-id="${h.xmlEscape(svc.id)}">
                                                                     Remove
