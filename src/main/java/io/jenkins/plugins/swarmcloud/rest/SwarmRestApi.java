@@ -636,8 +636,11 @@ public class SwarmRestApi implements RootAction {
     /**
      * GET /swarm-api/audit - Get audit log entries
      *
+     * @param req Stapler request
+     * @param rsp Stapler response
      * @param cloud Optional cloud name filter
-     * @param limit Maximum entries to return (default 100)
+     * @param limitParam Maximum entries to return (default 100)
+     * @throws IOException if response writing fails
      */
     @GET
     public void doAudit(StaplerRequest req, StaplerResponse rsp,
