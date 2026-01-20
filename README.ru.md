@@ -27,10 +27,8 @@
 | **Prometheus метрики** | ✅ | ❌ |
 | **Docker Secrets/Configs** | ✅ | ❌ |
 | **Наследование шаблонов** | ✅ | ❌ |
-| **Поддержка GPU** | ✅ | ❌ |
 | **Rate Limiting** | ✅ | ❌ |
 | **Health Checks** | ✅ | ❌ |
-| **Профили безопасности** | ✅ Seccomp, AppArmor | ❌ |
 | **Pipeline DSL** | ✅ `swarmAgent {}` | ❌ |
 | **Аудит логирование** | ✅ | ❌ |
 | **Очистка orphan-сервисов** | ✅ Автоматическая | ❌ |
@@ -42,7 +40,7 @@
 
 - **Современный стек** — Java 21, WebSocket, актуальный Jenkins API
 - **DevOps-Ready** — JCasC, REST API, Prometheus, Pipeline DSL
-- **Безопасность** — TLS, Secrets, Security Profiles, валидация ввода
+- **Безопасность** — TLS, Secrets, валидация ввода
 - **Надёжность** — Rate Limiting, Retry с backoff, Health Checks, очистка orphan
 - **Активная поддержка** — регулярные обновления vs заброшенный проект
 
@@ -59,8 +57,6 @@
 - **Dashboard** — мониторинг кластера в реальном времени на `/swarm-dashboard`
 - **REST API** — программное управление через `/swarm-api`
 - **Наследование шаблонов** — наследование настроек от родительских шаблонов (`inheritFrom`)
-- **Поддержка GPU** — аллокация generic ресурсов для NVIDIA GPU
-- **Профили безопасности** — конфигурация Seccomp и AppArmor
 - **Prometheus метрики** — эндпоинт `/swarm-api/prometheus`
 - **Аудит логирование** — отслеживание всех событий создания агентов
 - **Pipeline DSL** — нативный шаг `swarmAgent` для Jenkinsfile
@@ -135,8 +131,6 @@ jenkins:
 | `capAddString` | Linux capabilities для добавления |
 | `capDropString` | Linux capabilities для удаления |
 | `dnsServersString` | Кастомные DNS серверы |
-| `seccompProfile` | Seccomp профиль безопасности |
-| `apparmorProfile` | AppArmor профиль безопасности |
 
 ### Наследование шаблонов
 
@@ -167,17 +161,6 @@ templates:
         targetPath: "/run/secrets"
 ```
 
-### Поддержка GPU
-
-```yaml
-templates:
-  - name: "ml-training"
-    image: "nvidia/cuda:12.0-runtime"
-    genericResources:
-      - kind: "NVIDIA-GPU"
-        value: 1
-```
-
 ## Pipeline DSL
 
 ```groovy
@@ -201,9 +184,10 @@ pipeline {
 
 | Метод | Endpoint | Описание |
 |-------|----------|----------|
-| GET | `/status` | Статус кластера |
 | GET | `/clouds` | Список всех clouds |
+| GET | `/cloud?name=X` | Детали облака |
 | GET | `/templates?cloud=X` | Список шаблонов |
+| GET | `/template?cloud=X&name=Y` | Детали шаблона |
 | GET | `/agents?cloud=X` | Список агентов |
 | GET | `/prometheus` | Prometheus метрики |
 | GET | `/audit?cloud=X` | Аудит лог |

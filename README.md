@@ -27,10 +27,8 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 | **Prometheus Metrics** | ✅ | ❌ |
 | **Docker Secrets/Configs** | ✅ | ❌ |
 | **Template Inheritance** | ✅ | ❌ |
-| **GPU Support** | ✅ | ❌ |
 | **Rate Limiting** | ✅ | ❌ |
 | **Health Checks** | ✅ | ❌ |
-| **Security Profiles** | ✅ Seccomp, AppArmor | ❌ |
 | **Pipeline DSL** | ✅ `swarmAgent {}` | ❌ |
 | **Audit Logging** | ✅ | ❌ |
 | **Orphan Cleanup** | ✅ Automatic | ❌ |
@@ -42,7 +40,7 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 
 - **Modern Stack** — Java 21, WebSocket, current Jenkins API
 - **DevOps-Ready** — JCasC, REST API, Prometheus, Pipeline DSL
-- **Security** — TLS, Secrets, Security Profiles, Input Validation
+- **Security** — TLS, Secrets, Input Validation
 - **Reliability** — Rate Limiting, Retry with Backoff, Health Checks, Orphan Cleanup
 - **Active Support** — Regular updates vs abandoned project
 
@@ -59,8 +57,6 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 - **Dashboard** — Real-time cluster monitoring at `/swarm-dashboard`
 - **REST API** — Programmatic management at `/swarm-api`
 - **Template Inheritance** — Inherit settings from parent templates (`inheritFrom`)
-- **GPU Support** — Generic resource allocation for NVIDIA GPUs
-- **Security Profiles** — Seccomp and AppArmor configuration
 - **Prometheus Metrics** — `/swarm-api/prometheus` endpoint
 - **Audit Logging** — Track all provisioning events
 - **Pipeline DSL** — Native `swarmAgent` step for Jenkinsfiles
@@ -135,8 +131,6 @@ jenkins:
 | `capAddString` | Linux capabilities to add |
 | `capDropString` | Linux capabilities to drop |
 | `dnsServersString` | Custom DNS servers |
-| `seccompProfile` | Seccomp security profile |
-| `apparmorProfile` | AppArmor security profile |
 
 ### Template Inheritance
 
@@ -167,17 +161,6 @@ templates:
         targetPath: "/run/secrets"
 ```
 
-### GPU Support
-
-```yaml
-templates:
-  - name: "ml-training"
-    image: "nvidia/cuda:12.0-runtime"
-    genericResources:
-      - kind: "NVIDIA-GPU"
-        value: 1
-```
-
 ## Pipeline DSL
 
 ```groovy
@@ -201,9 +184,10 @@ Base URL: `http://jenkins/swarm-api/`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/status` | Cluster status |
 | GET | `/clouds` | List all clouds |
+| GET | `/cloud?name=X` | Cloud details |
 | GET | `/templates?cloud=X` | List templates |
+| GET | `/template?cloud=X&name=Y` | Template details |
 | GET | `/agents?cloud=X` | List agents |
 | GET | `/prometheus` | Prometheus metrics |
 | GET | `/audit?cloud=X` | Audit log |
