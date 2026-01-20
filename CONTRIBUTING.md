@@ -65,6 +65,19 @@ src/
 - Add Javadoc for public APIs
 - Keep methods focused and small
 
+### UI Development
+
+Use Jenkins Design Library components instead of custom CSS:
+
+- **Buttons**: `jenkins-button`, `jenkins-button--primary`, `jenkins-!-destructive-color`
+- **Alerts**: `jenkins-alert`, `jenkins-alert-danger`
+- **Tables**: `jenkins-table`
+- **Empty state**: `<l:notice title="..." icon="...">`
+- **Dialogs**: Use `dialog.confirm().then()` promise pattern
+- **Enums in forms**: Use `<f:enum>` for dropdown selects
+
+Reference: [Jenkins Design Library](https://weekly.ci.jenkins.io/design-library/)
+
 ### Testing
 
 - Write unit tests for new functionality
