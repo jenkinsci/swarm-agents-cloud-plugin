@@ -1,28 +1,25 @@
 package io.jenkins.plugins.swarmcloud;
 
 import hudson.model.Node;
-import io.jenkins.plugins.casc.ConfigurationAsCode;
 import io.jenkins.plugins.casc.misc.ConfiguredWithCode;
 import io.jenkins.plugins.casc.misc.JenkinsConfiguredWithCodeRule;
+import io.jenkins.plugins.casc.misc.junit.jupiter.WithJenkinsConfiguredWithCode;
 import jenkins.model.Jenkins;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for Configuration as Code support.
  */
-public class ConfigurationAsCodeTest {
-
-    @Rule
-    public JenkinsConfiguredWithCodeRule j = new JenkinsConfiguredWithCodeRule();
+@WithJenkinsConfiguredWithCode
+class ConfigurationAsCodeTest {
 
     @Test
     @ConfiguredWithCode("simple-config.yaml")
-    public void testSimpleConfiguration() throws Exception {
+    void testSimpleConfiguration(JenkinsConfiguredWithCodeRule j) {
         Jenkins jenkins = j.jenkins;
         assertNotNull(jenkins);
         assertEquals(1, jenkins.clouds.size());
@@ -45,7 +42,7 @@ public class ConfigurationAsCodeTest {
 
     @Test
     @ConfiguredWithCode("full-config.yaml")
-    public void testFullConfiguration() throws Exception {
+    void testFullConfiguration(JenkinsConfiguredWithCodeRule j) {
         Jenkins jenkins = j.jenkins;
         assertNotNull(jenkins);
         assertEquals(1, jenkins.clouds.size());
@@ -122,14 +119,14 @@ public class ConfigurationAsCodeTest {
 
     @Test
     @ConfiguredWithCode("multi-cloud-config.yaml")
-    public void testMultiCloudConfiguration() throws Exception {
+    void testMultiCloudConfiguration(JenkinsConfiguredWithCodeRule j) {
         Jenkins jenkins = j.jenkins;
         assertNotNull(jenkins);
         assertEquals(3, jenkins.clouds.size());
 
         // Verify all clouds are SwarmCloud instances
         for (var cloud : jenkins.clouds) {
-            assertTrue(cloud instanceof SwarmCloud);
+            assertInstanceOf(SwarmCloud.class, cloud);
         }
 
         // Test dev cloud
@@ -154,7 +151,7 @@ public class ConfigurationAsCodeTest {
     }
 
     @Test
-    public void testResourceFieldAliases() throws Exception {
+    void testResourceFieldAliases(JenkinsConfiguredWithCodeRule j) {
         // Test NanoCPUs and MemoryBytes aliases for docker-swarm-plugin compatibility
         SwarmAgentTemplate template = new SwarmAgentTemplate("resource-test");
 
@@ -183,7 +180,7 @@ public class ConfigurationAsCodeTest {
     }
 
     @Test
-    public void testFieldAliases() throws Exception {
+    void testFieldAliases(JenkinsConfiguredWithCodeRule j) {
         SwarmAgentTemplate template = new SwarmAgentTemplate("alias-test");
 
         // Test label/labelString alias

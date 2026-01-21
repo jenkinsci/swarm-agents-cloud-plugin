@@ -12,7 +12,6 @@ import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
 import io.jenkins.plugins.swarmcloud.SwarmComputerLauncher;
 import io.jenkins.plugins.swarmcloud.SwarmConfigFile;
@@ -429,8 +428,6 @@ public class DockerSwarmClient implements Closeable {
      * Gets logs from a service.
      */
     @Nullable
-    @SuppressFBWarnings(value = "SIC_INNER_SHOULD_BE_STATIC_ANON",
-            justification = "Anonymous class needs to access local variable logs")
     public String getServiceLogs(@NonNull String serviceId, int tailLines) {
         try {
             StringBuilder logs = new StringBuilder();

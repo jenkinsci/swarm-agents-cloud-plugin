@@ -106,9 +106,7 @@ class ClusterStatusTest {
         node.setId("node-1");
         status.addNode(node);
 
-        assertThrows(UnsupportedOperationException.class, () -> {
-            status.getNodes().add(new NodeInfo());
-        });
+        assertThrows(UnsupportedOperationException.class, () -> status.getNodes().add(new NodeInfo()));
     }
 
     @Test
@@ -135,9 +133,7 @@ class ClusterStatusTest {
         service.setId("svc-1");
         status.addService(service);
 
-        assertThrows(UnsupportedOperationException.class, () -> {
-            status.getServices().add(new ServiceInfo());
-        });
+        assertThrows(UnsupportedOperationException.class, () -> status.getServices().add(new ServiceInfo()));
     }
 
     @Test

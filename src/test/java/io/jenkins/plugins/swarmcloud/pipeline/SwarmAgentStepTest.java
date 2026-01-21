@@ -1,5 +1,6 @@
 package io.jenkins.plugins.swarmcloud.pipeline;
 
+import java.io.Serializable;
 import org.jenkinsci.plugins.workflow.steps.StepDescriptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -168,7 +169,7 @@ class SwarmAgentStepTest {
     void testSerialVersionUID() {
         // SwarmAgentStep implements Serializable
         SwarmAgentStep step = new SwarmAgentStep("test-cloud");
-        assertTrue(step instanceof java.io.Serializable);
+        assertInstanceOf(Serializable.class, step);
     }
 
     @Test
