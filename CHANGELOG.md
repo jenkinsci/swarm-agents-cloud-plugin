@@ -64,12 +64,4 @@ First official release in Jenkins Update Center.
 - Java 21 or newer
 - Docker Swarm cluster
 
-## [Unreleased]
-
-### Planned
-
-- Multi-cloud support
-- Agent pooling for faster provisioning
-
 [36.v2f7377c14682]: https://github.com/jenkinsci/swarm-agents-cloud-plugin/releases/tag/36.v2f7377c14682
-[Unreleased]: https://github.com/jenkinsci/swarm-agents-cloud-plugin/compare/36.v2f7377c14682...HEAD
