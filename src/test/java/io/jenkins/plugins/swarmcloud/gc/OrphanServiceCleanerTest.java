@@ -37,7 +37,7 @@ class OrphanServiceCleanerTest {
     }
 
     @Test
-    void testCleanupNowWithValidCloud(JenkinsRule jenkins) throws Exception {
+    void testCleanupNowWithValidCloud(JenkinsRule jenkins) {
         // Create a cloud (no Docker connection, so it won't actually clean anything)
         io.jenkins.plugins.swarmcloud.SwarmCloud cloud =
                 new io.jenkins.plugins.swarmcloud.SwarmCloud("cleanup-test-cloud");
@@ -50,7 +50,7 @@ class OrphanServiceCleanerTest {
     }
 
     @Test
-    void testCleanupNowWithNoServices(JenkinsRule jenkins) throws Exception {
+    void testCleanupNowWithNoServices(JenkinsRule jenkins) {
         // Create a cloud without Docker connection
         io.jenkins.plugins.swarmcloud.SwarmCloud cloud =
                 new io.jenkins.plugins.swarmcloud.SwarmCloud("test-cloud");
