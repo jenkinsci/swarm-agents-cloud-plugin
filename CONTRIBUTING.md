@@ -42,7 +42,7 @@ mvn verify jacoco:report
 
 ### Project Structure
 
-```
+```text
 src/
 ├── main/
 │   ├── java/io/jenkins/plugins/swarmcloud/
@@ -78,7 +78,7 @@ Use Jenkins Design Library components instead of custom CSS:
 - **Tables**: `jenkins-table`
 - **Empty state**: `<l:notice title="..." icon="...">`
 - **Dialogs**: Use `dialog.confirm().then()` promise pattern
-- **Enums in forms**: Use `<f:enum>` for dropdown selects
+- **Enums in forms**: Use `<f:select/>` with `doFillXxxItems()` method in Descriptor for custom/nested enums. Standard Jenkins enums (like `Node.Mode`) can use `<f:enum>`
 
 Reference: [Jenkins Design Library](https://weekly.ci.jenkins.io/design-library/)
 
@@ -105,7 +105,7 @@ Reference: [Jenkins Design Library](https://weekly.ci.jenkins.io/design-library/
 
 Follow conventional commits:
 
-```
+```text
 feat: Add support for Docker configs
 fix: Correct memory calculation in dashboard
 docs: Update README with new features
@@ -129,6 +129,7 @@ test: Add tests for orphan service cleanup
 ## Security
 
 If you discover a security vulnerability, please report it privately:
+
 - Do NOT open a public issue
 - Email the maintainer or use GitHub's security advisory feature
 
@@ -140,6 +141,6 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 - Open an issue for questions
 - Check existing issues and PRs
-- Review Jenkins plugin development docs: https://www.jenkins.io/doc/developer/
+- Review [Jenkins Plugin Development docs](https://www.jenkins.io/doc/developer/)
 
 Thank you for contributing!
