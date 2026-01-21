@@ -10,6 +10,7 @@ import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.labels.LabelAtom;
 import hudson.util.FormValidation;
+import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -1287,6 +1288,17 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             @Override
             public String getDisplayName() {
                 return "Mount Configuration";
+            }
+
+            /**
+             * Fills the type dropdown with mount type options.
+             */
+            public ListBoxModel doFillTypeItems() {
+                ListBoxModel items = new ListBoxModel();
+                for (SwarmMountType type : SwarmMountType.values()) {
+                    items.add(type.getValue(), type.name());
+                }
+                return items;
             }
 
             /**
