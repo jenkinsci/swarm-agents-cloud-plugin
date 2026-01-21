@@ -1293,7 +1293,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             /**
              * Fills the type dropdown with mount type options.
              */
+            @POST
             public ListBoxModel doFillTypeItems() {
+                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
                 ListBoxModel items = new ListBoxModel();
                 for (SwarmMountType type : SwarmMountType.values()) {
                     items.add(type.getValue(), type.name());
