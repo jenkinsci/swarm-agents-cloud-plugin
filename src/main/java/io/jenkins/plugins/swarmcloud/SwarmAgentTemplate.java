@@ -1183,7 +1183,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     }
 
     /**
-     * Generic resource configuration for Docker Swarm (e.g., GPU).
+     * Generic resource configuration for Docker Swarm.
      * Maps to Swarm's GenericResource in task resource requirements.
      */
     public static class GenericResource extends AbstractDescribableImpl<GenericResource> {
@@ -1293,45 +1293,12 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             /**
              * Fills the type dropdown with mount type options.
              */
-            @POST
             public ListBoxModel doFillTypeItems() {
-                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
                 ListBoxModel items = new ListBoxModel();
                 for (SwarmMountType type : SwarmMountType.values()) {
                     items.add(type.getValue(), type.name());
                 }
                 return items;
-            }
-
-            /**
-             * Validates the source field.
-             */
-            @POST
-            public FormValidation doCheckSource(@QueryParameter String value, @QueryParameter SwarmMountType type) {
-                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-                String s = Util.fixEmptyAndTrim(value);
-                if (type == SwarmMountType.TMPFS) {
-                    return FormValidation.ok(); // Source not needed for tmpfs
-                }
-                if (s == null) {
-                    return FormValidation.warning("Source is required for bind and volume mounts");
-                }
-                return FormValidation.ok();
-            }
-
-            /**
-             * Validates the target field.
-             */
-            @POST
-            public FormValidation doCheckTarget(@QueryParameter String value) {
-                Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-                if (Util.fixEmptyAndTrim(value) == null) {
-                    return FormValidation.error("Target path is required");
-                }
-                if (!value.startsWith("/")) {
-                    return FormValidation.error("Target must be an absolute path (start with /)");
-                }
-                return FormValidation.ok();
             }
         }
     }

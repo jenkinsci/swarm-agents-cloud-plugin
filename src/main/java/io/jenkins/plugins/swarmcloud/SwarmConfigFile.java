@@ -219,44 +219,5 @@ public class SwarmConfigFile extends AbstractDescribableImpl<SwarmConfigFile> {
         public String getDisplayName() {
             return "Docker Swarm Config";
         }
-
-        @POST
-        public FormValidation doCheckConfigName(@QueryParameter String value) {
-            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-            if (Util.fixEmptyAndTrim(value) == null) {
-                return FormValidation.error("Config name is required");
-            }
-            if (!value.matches("[a-zA-Z0-9_.-]+")) {
-                return FormValidation.error("Config name can only contain letters, numbers, underscores, dots, and hyphens");
-            }
-            if (value.length() > 64) {
-                return FormValidation.error("Config name must be 64 characters or less");
-            }
-            return FormValidation.ok();
-        }
-
-        @POST
-        public FormValidation doCheckFileMode(@QueryParameter String value) {
-            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-            if (Util.fixEmptyAndTrim(value) == null) {
-                return FormValidation.ok(); // Optional
-            }
-            if (!value.matches("[0-7]{3,4}")) {
-                return FormValidation.error("File mode must be in octal format (e.g., 0644)");
-            }
-            return FormValidation.ok();
-        }
-
-        @POST
-        public FormValidation doCheckTargetPath(@QueryParameter String value) {
-            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
-            if (Util.fixEmptyAndTrim(value) == null) {
-                return FormValidation.ok(); // Optional
-            }
-            if (!value.startsWith("/")) {
-                return FormValidation.error("Target path must be an absolute path");
-            }
-            return FormValidation.ok();
-        }
     }
 }
