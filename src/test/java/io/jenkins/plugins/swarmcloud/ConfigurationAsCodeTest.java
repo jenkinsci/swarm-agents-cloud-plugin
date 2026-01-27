@@ -102,6 +102,12 @@ class ConfigurationAsCodeTest {
         assertTrue(aliases.contains("maven-agent"));
         assertTrue(aliases.contains("build-agent"));
 
+        // Test extra hosts
+        List<String> extraHosts = mavenTemplate.getExtraHosts();
+        assertEquals(2, extraHosts.size());
+        assertTrue(extraHosts.contains("internal-registry:192.168.1.100"));
+        assertTrue(extraHosts.contains("database.local:10.0.0.50"));
+
         // Test nodejs template
         SwarmAgentTemplate nodejsTemplate = cloud.getTemplates().get(1);
         assertEquals("nodejs-agent", nodejsTemplate.getName());

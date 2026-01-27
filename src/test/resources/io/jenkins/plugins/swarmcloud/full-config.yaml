@@ -44,6 +44,9 @@ jenkins:
             cacheDirs:
               - "/root/.m2/repository"
               - "/tmp/build-cache"
+            extraHosts:
+              - "internal-registry:192.168.1.100"
+              - "database.local:10.0.0.50"
 
           - name: "nodejs-agent"
             image: "myregistry/jenkins-agent-node:20"

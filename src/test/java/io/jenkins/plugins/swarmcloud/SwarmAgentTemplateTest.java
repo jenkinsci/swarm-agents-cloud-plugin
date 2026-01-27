@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
+import hudson.util.FormValidation;
 import java.util.List;
 import java.util.Set;
 
@@ -199,5 +200,167 @@ class SwarmAgentTemplateTest {
 
         assertEquals(2, template.getNetworkAliases().size());
         assertTrue(template.getNetworkAliases().contains("agent"));
+    }
+
+    @Test
+    void testExtraHosts() {
+        template.setExtraHosts(List.of(
+                "myhost:192.168.1.1",
+                "database:10.0.0.5"
+        ));
+
+        assertEquals(2, template.getExtraHosts().size());
+        assertEquals("myhost:192.168.1.1", template.getExtraHosts().get(0));
+        assertEquals("database:10.0.0.5", template.getExtraHosts().get(1));
+    }
+
+    @Test
+    void testExtraHostsString() {
+        // Test setter
+        template.setExtraHostsString("myhost:192.168.1.1\ndatabase:10.0.0.5");
+
+        assertEquals(2, template.getExtraHosts().size());
+        assertEquals("myhost:192.168.1.1", template.getExtraHosts().get(0));
+
+        // Test getter
+        String result = template.getExtraHostsString();
+        assertNotNull(result);
+        assertTrue(result.contains("myhost:192.168.1.1"));
+        assertTrue(result.contains("database:10.0.0.5"));
+    }
+
+    @Test
+    void testExtraHostsFiltersInvalid() {
+        // Invalid entries (no colon) should be filtered out
+        template.setExtraHostsString("invalid-entry\nvalid:1.2.3.4\n");
+
+        assertEquals(1, template.getExtraHosts().size());
+        assertEquals("valid:1.2.3.4", template.getExtraHosts().get(0));
+    }
+
+    @Test
+    void testExtraHostsEmpty() {
+        template.setExtraHostsString(null);
+        assertTrue(template.getExtraHosts().isEmpty());
+
+        template.setExtraHostsString("   ");
+        assertTrue(template.getExtraHosts().isEmpty());
+    }
+
+    @Test
+    void testExtraHostsImmutable() {
+        template.setExtraHosts(List.of("host:1.2.3.4"));
+
+        // Verify returned list is immutable
+        List<String> hosts = template.getExtraHosts();
+        assertThrows(UnsupportedOperationException.class, () -> hosts.add("another:5.6.7.8"));
+    }
+
+    @Test
+    void testExtraHostsWhitespace() {
+        // Test trimming of whitespace
+        template.setExtraHostsString("  myhost:192.168.1.1  \n  database:10.0.0.5  \n");
+
+        assertEquals(2, template.getExtraHosts().size());
+        assertEquals("myhost:192.168.1.1", template.getExtraHosts().get(0));
+        assertEquals("database:10.0.0.5", template.getExtraHosts().get(1));
+    }
+
+    // ========================
+    // doCheckExtraHostsString validation tests
+    // ========================
+
+    @Test
+    void testDoCheckExtraHostsStringEmpty() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        assertEquals(FormValidation.Kind.OK, descriptor.doCheckExtraHostsString(null).kind);
+        assertEquals(FormValidation.Kind.OK, descriptor.doCheckExtraHostsString("").kind);
+        assertEquals(FormValidation.Kind.OK, descriptor.doCheckExtraHostsString("   ").kind);
+    }
+
+    @Test
+    void testDoCheckExtraHostsStringValidIPv4() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        assertEquals(FormValidation.Kind.OK,
+                descriptor.doCheckExtraHostsString("myhost:192.168.1.1").kind);
+        assertEquals(FormValidation.Kind.OK,
+                descriptor.doCheckExtraHostsString("db:10.0.0.5").kind);
+        assertEquals(FormValidation.Kind.OK,
+                descriptor.doCheckExtraHostsString("localhost:127.0.0.1").kind);
+        assertEquals(FormValidation.Kind.OK,
+                descriptor.doCheckExtraHostsString("host1:192.168.1.1\nhost2:10.0.0.2").kind);
+    }
+
+    @Test
+    void testDoCheckExtraHostsStringValidIPv6() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        assertEquals(FormValidation.Kind.OK,
+                descriptor.doCheckExtraHostsString("myhost:2001:db8::1").kind);
+        assertEquals(FormValidation.Kind.OK,
+                descriptor.doCheckExtraHostsString("ipv6host:fe80::1").kind);
+    }
+
+    @Test
+    void testDoCheckExtraHostsStringInvalidFormat() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        // Missing colon
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("invalidentry").kind);
+        // Colon at start
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString(":192.168.1.1").kind);
+        // Colon at end
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("hostname:").kind);
+    }
+
+    @Test
+    void testDoCheckExtraHostsStringInvalidHostname() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        // Hostname starting with hyphen
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("-invalid:192.168.1.1").kind);
+        // Hostname starting with dot
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString(".invalid:192.168.1.1").kind);
+        // Hostname with special characters
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("host_name:192.168.1.1").kind);
+    }
+
+    @Test
+    void testDoCheckExtraHostsStringInvalidIP() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        // Invalid IPv4 - octet > 255
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("myhost:192.168.1.256").kind);
+        // Invalid IP format
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("myhost:not-an-ip").kind);
+        // Invalid IP - only dots
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("myhost:...").kind);
+    }
+
+    @Test
+    void testDoCheckExtraHostsStringMultipleWithInvalid() {
+        SwarmAgentTemplate.DescriptorImpl descriptor =
+                jenkins.jenkins.getDescriptorByType(SwarmAgentTemplate.DescriptorImpl.class);
+
+        // First entry valid, second invalid
+        assertEquals(FormValidation.Kind.ERROR,
+                descriptor.doCheckExtraHostsString("valid:192.168.1.1\ninvalid").kind);
     }
 }

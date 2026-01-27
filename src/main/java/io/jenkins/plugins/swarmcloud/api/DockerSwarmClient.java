@@ -854,6 +854,20 @@ public class DockerSwarmClient implements Closeable {
             containerSpec.withDnsConfig(dnsConfig);
         }
 
+        // Extra hosts entries (/etc/hosts)
+        List<String> extraHosts = template.getExtraHosts();
+        if (!extraHosts.isEmpty()) {
+            List<String> hostsForDocker = extraHosts.stream()
+                    .map(this::convertHostEntryToDockerFormat)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toList());
+
+            if (!hostsForDocker.isEmpty()) {
+                containerSpec.withHosts(hostsForDocker);
+                LOGGER.log(Level.FINE, "Configured {0} extra host(s) for container", hostsForDocker.size());
+            }
+        }
+
         // Stop signal
         if (isNotBlank(template.getStopSignal())) {
             containerSpec.withStopSignal(template.getStopSignal());
@@ -1041,6 +1055,33 @@ public class DockerSwarmClient implements Closeable {
         if (dockerClient != null) {
             dockerClient.close();
         }
+    }
+
+    /**
+     * Converts extra host entry from "hostname:IP" format to Docker API format "IP hostname".
+     * Returns null if the entry format is invalid.
+     */
+    @Nullable
+    private String convertHostEntryToDockerFormat(String entry) {
+        if (entry == null || entry.isBlank()) {
+            return null;
+        }
+
+        int colonIndex = entry.indexOf(':');
+        if (colonIndex <= 0 || colonIndex >= entry.length() - 1) {
+            LOGGER.log(Level.WARNING, "Invalid extra host entry format (missing colon or empty parts): {0}", entry);
+            return null;
+        }
+
+        String hostname = entry.substring(0, colonIndex).trim();
+        String ip = entry.substring(colonIndex + 1).trim();
+
+        if (hostname.isEmpty() || ip.isEmpty()) {
+            LOGGER.log(Level.WARNING, "Invalid extra host entry (empty hostname or IP): {0}", entry);
+            return null;
+        }
+
+        return ip + " " + hostname;
     }
 
     /**

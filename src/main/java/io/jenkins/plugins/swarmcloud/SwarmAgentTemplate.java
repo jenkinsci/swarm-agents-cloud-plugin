@@ -92,6 +92,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     private List<String> dnsSearch;     // DNS search domains
     private String stopSignal;          // Signal to stop container (e.g., SIGTERM)
     private long stopGracePeriod;       // Grace period in seconds before force kill
+    private List<String> extraHosts;    // Extra /etc/hosts entries (hostname:IP)
 
     // Template inheritance (like K8s plugin inheritFrom)
     private String inheritFrom;         // Name of parent template to inherit from
@@ -478,10 +479,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      */
     @Nullable
     public String getPlacementConstraintsString() {
-        if (placementConstraints == null || placementConstraints.isEmpty()) {
-            return null;
-        }
-        return String.join("\n", placementConstraints);
+        return formatAsNewlineSeparated(placementConstraints);
     }
 
     @NonNull
@@ -586,10 +584,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      */
     @Nullable
     public String getCacheDirsString() {
-        if (cacheDirs == null || cacheDirs.isEmpty()) {
-            return null;
-        }
-        return String.join("\n", cacheDirs);
+        return formatAsNewlineSeparated(cacheDirs);
     }
 
     /**
@@ -710,7 +705,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
 
     @Nullable
     public String getSysctlsString() {
-        return sysctls != null && !sysctls.isEmpty() ? String.join("\n", sysctls) : null;
+        return formatAsNewlineSeparated(sysctls);
     }
 
     public boolean isPrivileged() {
@@ -804,6 +799,37 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundSetter
     public void setDnsSearch(List<String> dnsSearch) {
         this.dnsSearch = dnsSearch;
+    }
+
+    /**
+     * Gets extra hosts entries for container's /etc/hosts file.
+     * Format: hostname:IP (e.g., myhost:192.168.1.1)
+     */
+    @NonNull
+    public List<String> getExtraHosts() {
+        return extraHosts != null ? Collections.unmodifiableList(extraHosts) : Collections.emptyList();
+    }
+
+    @DataBoundSetter
+    public void setExtraHosts(List<String> extraHosts) {
+        this.extraHosts = extraHosts;
+    }
+
+    /**
+     * Sets extra hosts from a newline-separated string (for Jelly UI).
+     * Format: hostname:IP (one per line)
+     */
+    @DataBoundSetter
+    public void setExtraHostsString(String extraHostsStr) {
+        this.extraHosts = parseNewlineSeparatedWithFilter(extraHostsStr, s -> s.contains(":"));
+    }
+
+    /**
+     * Gets extra hosts as a newline-separated string (for Jelly UI).
+     */
+    @Nullable
+    public String getExtraHostsString() {
+        return formatAsNewlineSeparated(extraHosts);
     }
 
     @Nullable
@@ -1057,6 +1083,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         resolved.setProvisionRetryCount(this.provisionRetryCount > 0 ? this.provisionRetryCount : parentTemplate.getProvisionRetryCount());
         resolved.setProvisionRetryDelayMs(this.provisionRetryDelayMs > 0 ? this.provisionRetryDelayMs : parentTemplate.getProvisionRetryDelayMs());
         resolved.setPortBindings(mergeLists(parentTemplate.getPortBindings(), this.portBindings));
+        resolved.setExtraHosts(mergeLists(parentTemplate.getExtraHosts(), this.extraHosts));
 
         return resolved;
     }
@@ -1097,6 +1124,21 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toList());
+    }
+
+    private List<String> parseNewlineSeparatedWithFilter(String str, java.util.function.Predicate<String> filter) {
+        if (str == null || str.isBlank()) return null;
+        return Arrays.stream(str.split("\\n"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .filter(filter)
+                .collect(Collectors.toList());
+    }
+
+    @Nullable
+    private String formatAsNewlineSeparated(List<String> list) {
+        if (list == null || list.isEmpty()) return null;
+        return String.join("\n", list);
     }
 
     public void setParent(SwarmCloud parent) {
@@ -1497,6 +1539,57 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
                 return FormValidation.error("Invalid CPU format. Use decimal number like: 0.5, 1.0, 2.0");
             }
             return FormValidation.ok();
+        }
+
+        /**
+         * Validates extra hosts configuration.
+         * Format: hostname:IP (one per line)
+         */
+        @POST
+        public FormValidation doCheckExtraHostsString(@QueryParameter String value) {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+            if (Util.fixEmptyAndTrim(value) == null) {
+                return FormValidation.ok(); // Optional field
+            }
+
+            String[] lines = value.split("\\n");
+            for (String line : lines) {
+                line = line.trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+
+                int colonIndex = line.indexOf(':');
+                if (colonIndex <= 0 || colonIndex == line.length() - 1) {
+                    return FormValidation.error(
+                            "Invalid format: '" + line + "'. Expected hostname:IP (e.g., myhost:192.168.1.1)");
+                }
+
+                String hostname = line.substring(0, colonIndex).trim();
+                String ip = line.substring(colonIndex + 1).trim();
+
+                if (!hostname.matches("^[a-zA-Z0-9][a-zA-Z0-9.-]*$")) {
+                    return FormValidation.error(
+                            "Invalid hostname: '" + hostname + "'. Must start with alphanumeric.");
+                }
+
+                if (!isValidIpAddress(ip)) {
+                    return FormValidation.error(
+                            "Invalid IP address: '" + ip + "'. Must be valid IPv4 or IPv6.");
+                }
+            }
+
+            return FormValidation.ok();
+        }
+
+        private boolean isValidIpAddress(String ip) {
+            try {
+                // Use InetAddress for robust IPv4 and IPv6 validation
+                java.net.InetAddress.getByName(ip);
+                return true;
+            } catch (java.net.UnknownHostException e) {
+                return false;
+            }
         }
     }
 }

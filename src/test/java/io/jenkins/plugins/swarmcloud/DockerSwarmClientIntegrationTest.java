@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -131,6 +133,57 @@ class DockerSwarmClientIntegrationTest {
             // Verify service is removed
             var removedService = client.getService(serviceId);
             assertNull(removedService);
+
+        } catch (Exception e) {
+            // Cleanup on failure
+            try {
+                var services = client.listJenkinsServices();
+                for (var svc : services) {
+                    if (svc.getSpec().getName().equals(agentName)) {
+                        client.removeService(svc.getId());
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Integration test for creating a service with extra hosts.
+     * Requires Docker Swarm to be initialized.
+     */
+    @Test
+    @Disabled("Requires Docker Swarm mode to be initialized")
+    void testCreateServiceWithExtraHosts() {
+        SwarmAgentTemplate template = new SwarmAgentTemplate("extra-hosts-test");
+        template.setImage("alpine:latest");
+        template.setCommand("cat /etc/hosts && sleep 30");
+        template.setExtraHosts(List.of(
+                "myhost:192.168.1.1",
+                "database:10.0.0.5"
+        ));
+
+        String agentName = "test-extra-hosts-" + System.currentTimeMillis();
+
+        try {
+            String serviceId = client.createService(
+                    agentName,
+                    template,
+                    "http://localhost:8080",
+                    "test-secret",
+                    null
+            );
+
+            assertNotNull(serviceId);
+            assertFalse(serviceId.isBlank());
+
+            // Verify service was created
+            var service = client.getService(serviceId);
+            assertNotNull(service);
+
+            // Cleanup
+            client.removeService(serviceId);
 
         } catch (Exception e) {
             // Cleanup on failure

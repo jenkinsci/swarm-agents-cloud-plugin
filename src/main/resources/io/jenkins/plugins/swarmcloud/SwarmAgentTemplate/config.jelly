@@ -219,6 +219,11 @@
                 <f:textbox/>
             </f:entry>
 
+            <f:entry title="Extra Hosts (newline-separated)" field="extraHostsString"
+                     description="Additional /etc/hosts entries. Format: hostname:IP (one per line). Example: myhost:192.168.1.1">
+                <f:textarea/>
+            </f:entry>
+
             <f:entry title="Stop Signal" field="stopSignal"
                      description="Signal to stop container (e.g., SIGTERM, SIGKILL)">
                 <f:textbox/>
