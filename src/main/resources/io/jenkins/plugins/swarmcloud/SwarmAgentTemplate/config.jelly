@@ -1,5 +1,5 @@
 <?jelly escape-by-default='true'?>
-<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form">
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
 
     <f:entry title="Name" field="name">
         <f:textbox/>
@@ -8,6 +8,11 @@
     <f:entry title="Docker Image" field="image"
              description="Docker image for the agent (e.g., jenkins/inbound-agent:latest)">
         <f:textbox default="jenkins/inbound-agent:latest"/>
+    </f:entry>
+
+    <f:entry title="Registry Credentials" field="registryCredentialsId"
+             description="Credentials for private Docker registry (username/password). Leave empty for public images.">
+        <c:select/>
     </f:entry>
 
     <f:entry title="Label" field="label"

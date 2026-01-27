@@ -363,4 +363,20 @@ class SwarmAgentTemplateTest {
         assertEquals(FormValidation.Kind.ERROR,
                 descriptor.doCheckExtraHostsString("valid:192.168.1.1\ninvalid").kind);
     }
+
+    // ========================
+    // registryCredentialsId tests
+    // ========================
+
+    @Test
+    void testRegistryCredentialsId() {
+        template.setRegistryCredentialsId("my-docker-creds");
+        assertEquals("my-docker-creds", template.getRegistryCredentialsId());
+
+        template.setRegistryCredentialsId(null);
+        assertNull(template.getRegistryCredentialsId());
+
+        template.setRegistryCredentialsId("   ");
+        assertNull(template.getRegistryCredentialsId());
+    }
 }

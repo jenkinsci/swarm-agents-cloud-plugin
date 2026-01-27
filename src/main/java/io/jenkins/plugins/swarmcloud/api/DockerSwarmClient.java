@@ -371,8 +371,24 @@ public class DockerSwarmClient implements Closeable {
                     new Object[]{ports.size(), agentName});
         }
 
-        // Create the service
-        CreateServiceResponse response = dockerClient.createServiceCmd(serviceSpec).exec();
+        // Create the service with optional registry authentication
+        var createServiceCmd = dockerClient.createServiceCmd(serviceSpec);
+
+        String registryCredentialsId = template.getRegistryCredentialsId();
+        if (registryCredentialsId != null && !registryCredentialsId.isBlank()) {
+            String registryAddress = DockerCredentialsHelper.extractRegistryAddress(template.getImage());
+            AuthConfig authConfig = DockerCredentialsHelper.createAuthConfig(
+                    registryCredentialsId, registryAddress);
+            if (authConfig != null) {
+                createServiceCmd.withAuthConfig(authConfig);
+                LOGGER.log(Level.FINE, "Using registry auth for image {0}, registry: {1}",
+                        new Object[]{template.getImage(), registryAddress});
+            } else {
+                LOGGER.log(Level.WARNING, "Registry credentials not found: {0}", registryCredentialsId);
+            }
+        }
+
+        CreateServiceResponse response = createServiceCmd.exec();
         String serviceId = response.getId();
 
         LOGGER.log(Level.FINE, "Created service: {0} with ID: {1}", new Object[]{agentName, serviceId});

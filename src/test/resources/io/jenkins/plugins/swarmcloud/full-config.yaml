@@ -10,6 +10,7 @@ jenkins:
         templates:
           - name: "maven-jdk21"
             image: "myregistry/jenkins-agent-maven:jdk21"
+            registryCredentialsId: "docker-registry-creds"
             label: "maven java21 linux"
             workingDir: "/home/jenkins/agent"
             numExecutors: 2

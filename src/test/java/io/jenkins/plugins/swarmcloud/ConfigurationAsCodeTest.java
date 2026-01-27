@@ -70,6 +70,9 @@ class ConfigurationAsCodeTest {
         assertEquals("0.5", mavenTemplate.getCpuReservation());
         assertEquals("1g", mavenTemplate.getMemoryReservation());
 
+        // Test registry credentials
+        assertEquals("docker-registry-creds", mavenTemplate.getRegistryCredentialsId());
+
         // Test mounts (via hostBinds alias)
         List<SwarmAgentTemplate.MountConfig> mounts = mavenTemplate.getMounts();
         assertEquals(2, mounts.size());

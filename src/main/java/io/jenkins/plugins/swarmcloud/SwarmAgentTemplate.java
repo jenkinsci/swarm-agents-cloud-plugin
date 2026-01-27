@@ -1,18 +1,27 @@
 package io.jenkins.plugins.swarmcloud;
 
+import com.cloudbees.plugins.credentials.CredentialsMatchers;
+import com.cloudbees.plugins.credentials.CredentialsProvider;
+import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
+import hudson.model.Item;
 import hudson.model.Label;
 import hudson.model.Node;
+import hudson.model.Queue;
 import hudson.model.labels.LabelAtom;
+import hudson.model.queue.Tasks;
+import hudson.security.ACL;
 import hudson.util.FormValidation;
 import hudson.util.ListBoxModel;
 import jenkins.model.Jenkins;
 import org.jenkinsci.Symbol;
+import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
@@ -114,6 +123,9 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
 
     // Port bindings for published ports
     private List<PortBinding> portBindings;  // e.g., 80:8080, :5900
+
+    // Docker Registry credentials for private images
+    private String registryCredentialsId;
 
     // Container args control - when true, don't pass args to container entrypoint
     // Useful for images that only use environment variables (JENKINS_URL, JENKINS_SECRET, etc.)
@@ -1007,6 +1019,27 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         setPortBindingsString(portBinds);
     }
 
+    // Docker Registry credentials for private images
+
+    /**
+     * Gets the credentials ID for Docker registry authentication.
+     * Used when pulling private images.
+     */
+    @Nullable
+    public String getRegistryCredentialsId() {
+        return registryCredentialsId;
+    }
+
+    /**
+     * Sets the credentials ID for Docker registry authentication.
+     *
+     * @param registryCredentialsId ID of username/password credentials for registry auth
+     */
+    @DataBoundSetter
+    public void setRegistryCredentialsId(String registryCredentialsId) {
+        this.registryCredentialsId = Util.fixEmptyAndTrim(registryCredentialsId);
+    }
+
     /**
      * Resolves this template by merging with parent template if inheritFrom is set.
      * Similar to Kubernetes plugin podTemplate inheritance.
@@ -1084,6 +1117,8 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
         resolved.setProvisionRetryDelayMs(this.provisionRetryDelayMs > 0 ? this.provisionRetryDelayMs : parentTemplate.getProvisionRetryDelayMs());
         resolved.setPortBindings(mergeLists(parentTemplate.getPortBindings(), this.portBindings));
         resolved.setExtraHosts(mergeLists(parentTemplate.getExtraHosts(), this.extraHosts));
+        resolved.setRegistryCredentialsId(
+                this.registryCredentialsId != null ? this.registryCredentialsId : parentTemplate.getRegistryCredentialsId());
 
         return resolved;
     }
@@ -1580,6 +1615,42 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
             }
 
             return FormValidation.ok();
+        }
+
+        /**
+         * Fills the registry credentials dropdown with available username/password credentials.
+         * Used for Docker registry authentication when pulling private images.
+         */
+        @POST
+        public ListBoxModel doFillRegistryCredentialsIdItems(
+                @AncestorInPath Item item,
+                @QueryParameter String registryCredentialsId) {
+
+            StandardListBoxModel result = new StandardListBoxModel();
+
+            if (item == null) {
+                if (!Jenkins.get().hasPermission(Jenkins.ADMINISTER)) {
+                    return result.includeCurrentValue(registryCredentialsId);
+                }
+            } else {
+                if (!item.hasPermission(Item.EXTENDED_READ)
+                        && !item.hasPermission(CredentialsProvider.USE_ITEM)) {
+                    return result.includeCurrentValue(registryCredentialsId);
+                }
+            }
+
+            result.includeEmptyValue();
+            result.includeMatchingAs(
+                    item instanceof Queue.Task
+                            ? Tasks.getAuthenticationOf((Queue.Task) item)
+                            : ACL.SYSTEM,
+                    item,
+                    StandardUsernamePasswordCredentials.class,
+                    Collections.emptyList(),
+                    CredentialsMatchers.always()
+            );
+
+            return result;
         }
 
         private boolean isValidIpAddress(String ip) {

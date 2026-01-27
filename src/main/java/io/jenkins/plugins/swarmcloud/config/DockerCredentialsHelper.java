@@ -4,7 +4,9 @@ import com.cloudbees.plugins.credentials.CredentialsMatchers;
 import com.cloudbees.plugins.credentials.CredentialsProvider;
 import com.cloudbees.plugins.credentials.common.StandardCredentials;
 import com.cloudbees.plugins.credentials.common.StandardListBoxModel;
+import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
+import com.github.dockerjava.api.model.AuthConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import hudson.model.Item;
@@ -25,6 +27,9 @@ import java.util.logging.Logger;
 public class DockerCredentialsHelper {
 
     private static final Logger LOGGER = Logger.getLogger(DockerCredentialsHelper.class.getName());
+
+    /** Default Docker Hub registry URL for official and user images. */
+    public static final String DOCKER_HUB_REGISTRY_URL = "https://index.docker.io/v1/";
 
     private DockerCredentialsHelper() {
         // Utility class
@@ -143,5 +148,103 @@ public class DockerCredentialsHelper {
         }
         var secret = credentials.getClientKeySecret();
         return secret != null ? secret.getPlainText() : null;
+    }
+
+    // ==========================================
+    // Registry Authentication Support
+    // ==========================================
+
+    /**
+     * Looks up username/password credentials for Docker registry authentication.
+     *
+     * @param credentialsId The credentials ID
+     * @return The credentials, or null if not found
+     */
+    @Nullable
+    public static StandardUsernamePasswordCredentials lookupRegistryCredentials(
+            @Nullable String credentialsId) {
+        if (credentialsId == null || credentialsId.isBlank()) {
+            return null;
+        }
+
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null) {
+            return null;
+        }
+
+        try {
+            return CredentialsMatchers.firstOrNull(
+                    CredentialsProvider.lookupCredentials(
+                            StandardUsernamePasswordCredentials.class,
+                            jenkins,
+                            ACL.SYSTEM,
+                            Collections.emptyList()
+                    ),
+                    CredentialsMatchers.withId(credentialsId)
+            );
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Failed to lookup registry credentials: " + credentialsId, e);
+            return null;
+        }
+    }
+
+    /**
+     * Creates AuthConfig for Docker registry from credentials.
+     *
+     * @param credentialsId   The credentials ID for registry authentication
+     * @param registryAddress The registry address (e.g., "docker.io", "gcr.io")
+     * @return AuthConfig or null if credentials not found
+     */
+    @Nullable
+    public static AuthConfig createAuthConfig(
+            @Nullable String credentialsId,
+            @Nullable String registryAddress) {
+        StandardUsernamePasswordCredentials creds = lookupRegistryCredentials(credentialsId);
+        if (creds == null) {
+            return null;
+        }
+
+        AuthConfig authConfig = new AuthConfig()
+                .withUsername(creds.getUsername())
+                .withPassword(creds.getPassword().getPlainText());
+
+        if (registryAddress != null && !registryAddress.isBlank()) {
+            authConfig.withRegistryAddress(registryAddress);
+        }
+
+        return authConfig;
+    }
+
+    /**
+     * Extracts registry address from Docker image name.
+     * <p>
+     * Examples:
+     * <ul>
+     *   <li>"myregistry.com/image:tag" -&gt; "myregistry.com"</li>
+     *   <li>"gcr.io/project/image:tag" -&gt; "gcr.io"</li>
+     *   <li>"image:tag" -&gt; "https://index.docker.io/v1/" (Docker Hub)</li>
+     *   <li>"myuser/myimage:v1" -&gt; "https://index.docker.io/v1/" (Docker Hub)</li>
+     *   <li>"myregistry.com:5000/image:tag" -&gt; "myregistry.com:5000"</li>
+     * </ul>
+     *
+     * @param imageName The Docker image name
+     * @return The registry address
+     */
+    @NonNull
+    public static String extractRegistryAddress(@NonNull String imageName) {
+        if (!imageName.contains("/")) {
+            // No slash means official Docker Hub image (e.g., "nginx:latest")
+            return DOCKER_HUB_REGISTRY_URL;
+        }
+
+        String firstPart = imageName.split("/")[0];
+
+        // Check if first part looks like a registry (contains . or :)
+        if (firstPart.contains(".") || firstPart.contains(":")) {
+            return firstPart;
+        }
+
+        // Likely Docker Hub user/image format (e.g., "myuser/myimage:v1")
+        return DOCKER_HUB_REGISTRY_URL;
     }
 }
