@@ -161,6 +161,115 @@ templates:
         targetPath: "/run/secrets"
 ```
 
+### Registry Authentication (Private Images)
+
+Support for pulling images from private Docker registries when launching agents.
+
+**Supported Registries:**
+- Docker Hub (public and private repositories)
+- Google Container Registry (gcr.io)
+- AWS Elastic Container Registry (ECR)
+- GitHub Container Registry (ghcr.io)
+- Azure Container Registry (azurecr.io)
+- Any private registry with username/password authentication
+
+**Setup Steps:**
+
+1. **Create Credentials in Jenkins:**
+   - Go to **Manage Jenkins** → **Credentials**
+   - Add **Username with password** credentials for your registry
+   - Note the credentials ID
+
+2. **Configure Template:**
+   - In template configuration, select credentials from **Registry Credentials** dropdown
+   - Plugin automatically detects registry from image name
+
+**Configuration as Code Example:**
+
+```yaml
+jenkins:
+  clouds:
+    - swarmAgentsCloud:
+        name: "docker-swarm"
+        templates:
+          - name: "private-agent"
+            image: "myregistry.com/jenkins-agent:latest"
+            registryCredentialsId: "docker-registry-creds"
+            labelString: "private docker"
+```
+
+**UI Configuration:**
+Navigate to template settings → **Registry Credentials** dropdown → Select your credentials
+
+**Template Inheritance:**
+Registry credentials can be inherited from parent templates:
+
+```yaml
+templates:
+  - name: "base-private"
+    image: "myregistry.com/base:latest"
+    registryCredentialsId: "docker-registry-creds"
+
+  - name: "maven-private"
+    inheritFrom: "base-private"
+    image: "myregistry.com/maven:latest"
+    # Inherits registryCredentialsId from base-private
+```
+
+### Extra Hosts (Custom /etc/hosts Entries)
+
+Add custom hostname-to-IP mappings to container's `/etc/hosts` file, equivalent to Docker's `--add-host` flag.
+
+**Use Cases:**
+- Local development and testing
+- Custom DNS resolution for internal services
+- Database and service aliases
+
+**Format:** `hostname:IP` (one entry per line, supports IPv4 and IPv6)
+
+**Configuration as Code Example:**
+
+```yaml
+templates:
+  - name: "agent-with-hosts"
+    image: "jenkins/inbound-agent:latest"
+    extraHosts:
+      - "database.local:10.0.0.50"
+      - "internal-registry:192.168.1.100"
+      - "api.internal:172.16.0.10"
+```
+
+**UI Configuration:**
+Navigate to template settings → **Extra Hosts** textarea → Enter `hostname:IP` pairs (one per line)
+
+**Example:**
+```
+myhost:192.168.1.1
+database:10.0.0.5
+registry.local:172.16.0.20
+```
+
+**Template Inheritance:**
+Extra hosts are merged when using template inheritance:
+
+```yaml
+templates:
+  - name: "base"
+    extraHosts:
+      - "shared-db:10.0.0.1"
+
+  - name: "maven"
+    inheritFrom: "base"
+    extraHosts:
+      - "maven-repo:192.168.1.50"
+    # Container will have both extra hosts entries
+```
+
+**Validation:**
+- Automatic validation of IP addresses (IPv4 and IPv6)
+- Hostname format checking
+- Clear error messages for invalid entries
+
 ## Pipeline DSL
 
 ```groovy

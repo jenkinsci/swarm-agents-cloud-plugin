@@ -161,6 +161,115 @@ templates:
         targetPath: "/run/secrets"
 ```
 
+### Аутентификация в Registry (Приватные образы)
+
+Поддержка загрузки образов из приватных Docker registry при создании агентов.
+
+**Поддерживаемые Registry:**
+- Docker Hub (публичные и приватные репозитории)
+- Google Container Registry (gcr.io)
+- AWS Elastic Container Registry (ECR)
+- GitHub Container Registry (ghcr.io)
+- Azure Container Registry (azurecr.io)
+- Любой приватный registry с аутентификацией username/password
+
+**Шаги настройки:**
+
+1. **Создайте Credentials в Jenkins:**
+   - Перейдите в **Manage Jenkins** → **Credentials**
+   - Добавьте **Username with password** credentials для вашего registry
+   - Запомните ID credentials
+
+2. **Настройте шаблон:**
+   - В настройках шаблона выберите credentials из выпадающего списка **Registry Credentials**
+   - Плагин автоматически определит registry из имени образа
+
+**Пример Configuration as Code:**
+
+```yaml
+jenkins:
+  clouds:
+    - swarmAgentsCloud:
+        name: "docker-swarm"
+        templates:
+          - name: "private-agent"
+            image: "myregistry.com/jenkins-agent:latest"
+            registryCredentialsId: "docker-registry-creds"
+            labelString: "private docker"
+```
+
+**Настройка через UI:**
+Перейдите в настройки шаблона → выпадающий список **Registry Credentials** → Выберите ваши credentials
+
+**Наследование шаблонов:**
+Registry credentials могут наследоваться от родительских шаблонов:
+
+```yaml
+templates:
+  - name: "base-private"
+    image: "myregistry.com/base:latest"
+    registryCredentialsId: "docker-registry-creds"
+
+  - name: "maven-private"
+    inheritFrom: "base-private"
+    image: "myregistry.com/maven:latest"
+    # Наследует registryCredentialsId от base-private
+```
+
+### Extra Hosts (Кастомные записи /etc/hosts)
+
+Добавление кастомных соответствий hostname-IP в файл `/etc/hosts` контейнера, эквивалент флага `--add-host` в Docker.
+
+**Случаи использования:**
+- Локальная разработка и тестирование
+- Кастомное DNS-разрешение для внутренних сервисов
+- Алиасы для баз данных и сервисов
+
+**Формат:** `hostname:IP` (одна запись на строку, поддерживаются IPv4 и IPv6)
+
+**Пример Configuration as Code:**
+
+```yaml
+templates:
+  - name: "agent-with-hosts"
+    image: "jenkins/inbound-agent:latest"
+    extraHosts:
+      - "database.local:10.0.0.50"
+      - "internal-registry:192.168.1.100"
+      - "api.internal:172.16.0.10"
+```
+
+**Настройка через UI:**
+Перейдите в настройки шаблона → текстовое поле **Extra Hosts** → Введите пары `hostname:IP` (по одной на строку)
+
+**Пример:**
+```
+myhost:192.168.1.1
+database:10.0.0.5
+registry.local:172.16.0.20
+```
+
+**Наследование шаблонов:**
+Extra hosts объединяются при использовании наследования шаблонов:
+
+```yaml
+templates:
+  - name: "base"
+    extraHosts:
+      - "shared-db:10.0.0.1"
+
+  - name: "maven"
+    inheritFrom: "base"
+    extraHosts:
+      - "maven-repo:192.168.1.50"
+    # Контейнер будет иметь обе записи extra hosts
+```
+
+**Валидация:**
+- Автоматическая проверка IP-адресов (IPv4 и IPv6)
+- Проверка формата hostname
+- Понятные сообщения об ошибках для некорректных записей
+
 ## Pipeline DSL
 
 ```groovy
