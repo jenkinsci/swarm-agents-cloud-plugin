@@ -237,7 +237,7 @@ class SwarmAuditLogTest {
         String user = entries.get(0).getUser();
 
         assertNotNull(user);
-        // In tests without authenticated user, should be SYSTEM or ANONYMOUS
-        assertTrue(user.equals("SYSTEM") || user.equals("ANONYMOUS") || !user.isEmpty());
+        assertTrue(user.equals("SYSTEM") || user.equals("ANONYMOUS"),
+                "Expected audit user to be SYSTEM or ANONYMOUS in unauthenticated test context, got: " + user);
     }
 }
