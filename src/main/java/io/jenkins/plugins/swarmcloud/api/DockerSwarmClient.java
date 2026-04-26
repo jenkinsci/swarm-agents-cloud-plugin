@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.jenkins.plugins.swarmcloud.ServiceLabels;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
+import static io.jenkins.plugins.swarmcloud.security.InputValidator.isBlank;
 import static io.jenkins.plugins.swarmcloud.security.InputValidator.isNotBlank;
 import io.jenkins.plugins.swarmcloud.SwarmComputerLauncher;
 import io.jenkins.plugins.swarmcloud.SwarmConfigFile;
@@ -610,22 +611,18 @@ public class DockerSwarmClient implements Closeable {
 
         if (template.getCpuLimit() != null || template.getMemoryLimit() != null) {
             limits = new ResourceSpecs();
-            if (template.getCpuLimit() != null) {
-                limits.withNanoCPUs(parseNanoCPUs(template.getCpuLimit()));
-            }
-            if (template.getMemoryLimit() != null) {
-                limits.withMemoryBytes(parseMemoryBytes(template.getMemoryLimit()));
-            }
+            Long cpuLimitNano = template.getLimitsNanoCPUs();
+            if (cpuLimitNano != null) limits.withNanoCPUs(cpuLimitNano);
+            Long memLimitBytes = template.getLimitsMemoryBytes();
+            if (memLimitBytes != null) limits.withMemoryBytes(memLimitBytes);
         }
 
         if (template.getCpuReservation() != null || template.getMemoryReservation() != null) {
             reservations = new ResourceSpecs();
-            if (template.getCpuReservation() != null) {
-                reservations.withNanoCPUs(parseNanoCPUs(template.getCpuReservation()));
-            }
-            if (template.getMemoryReservation() != null) {
-                reservations.withMemoryBytes(parseMemoryBytes(template.getMemoryReservation()));
-            }
+            Long cpuResNano = template.getReservationsNanoCPUs();
+            if (cpuResNano != null) reservations.withNanoCPUs(cpuResNano);
+            Long memResBytes = template.getReservationsMemoryBytes();
+            if (memResBytes != null) reservations.withMemoryBytes(memResBytes);
         }
 
         if (limits != null || reservations != null) {
@@ -921,7 +918,7 @@ public class DockerSwarmClient implements Closeable {
         String seccompProfile = template.getSeccompProfile();
         String apparmorProfile = template.getApparmorProfile();
 
-        if (!isNotBlank(seccompProfile) && !isNotBlank(apparmorProfile)) {
+        if (isBlank(seccompProfile) && isBlank(apparmorProfile)) {
             return;
         }
 
@@ -953,37 +950,6 @@ public class DockerSwarmClient implements Closeable {
         }
 
         containerSpec.withPrivileges(privileges);
-    }
-
-    /**
-     * Parses CPU value to nanoCPUs.
-     */
-    private long parseNanoCPUs(String cpu) {
-        double cpuValue = Double.parseDouble(cpu.trim());
-        return (long) (cpuValue * 1_000_000_000);
-    }
-
-    /**
-     * Parses memory string to bytes.
-     */
-    private long parseMemoryBytes(String memory) {
-        memory = memory.toLowerCase(Locale.ROOT).trim();
-        long multiplier = 1;
-
-        if (memory.endsWith("g") || memory.endsWith("gb")) {
-            multiplier = 1024L * 1024L * 1024L;
-            memory = memory.replaceAll("[gb]+$", "");
-        } else if (memory.endsWith("m") || memory.endsWith("mb")) {
-            multiplier = 1024L * 1024L;
-            memory = memory.replaceAll("[mb]+$", "");
-        } else if (memory.endsWith("k") || memory.endsWith("kb")) {
-            multiplier = 1024L;
-            memory = memory.replaceAll("[kb]+$", "");
-        } else if (memory.endsWith("b")) {
-            memory = memory.substring(0, memory.length() - 1);
-        }
-
-        return Long.parseLong(memory.trim()) * multiplier;
     }
 
     /**
