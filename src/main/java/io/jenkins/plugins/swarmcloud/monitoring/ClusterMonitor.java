@@ -223,7 +223,9 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                         dockerClient.removeService(serviceId);
                         continue;
                     } catch (RuntimeException e) {
+                        // Keep the service visible so operators can see what's stuck.
                         LOGGER.log(Level.WARNING, "Failed to remove completed one-shot service: " + serviceId, e);
+                        info.setError("Failed to remove completed service: " + e.getMessage());
                     }
                 }
 
@@ -260,7 +262,8 @@ public class ClusterMonitor extends AsyncPeriodicWork {
         return status;
     }
 
-    private boolean isOneShotService(SwarmCloud cloud, Service service) {
+    // Package-private for tests.
+    boolean isOneShotService(SwarmCloud cloud, Service service) {
         var serviceSpec = service.getSpec();
         Map<String, String> labels = serviceSpec != null ? serviceSpec.getLabels() : null;
         if (labels == null) {

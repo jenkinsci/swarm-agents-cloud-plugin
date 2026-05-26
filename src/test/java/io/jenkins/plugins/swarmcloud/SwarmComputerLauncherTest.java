@@ -5,6 +5,9 @@ import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -281,5 +284,17 @@ class SwarmComputerLauncherTest {
     void testDescriptorDisplayName() {
         SwarmComputerLauncher.DescriptorImpl descriptor = new SwarmComputerLauncher.DescriptorImpl();
         assertEquals("Docker Swarm Agent Launcher", descriptor.getDisplayName());
+    }
+
+    @Test
+    void testTerminateAfterFailedLaunchHandlesNullAgent() {
+        SwarmComputerLauncher launcher = new SwarmComputerLauncher("test-cloud", "jenkins/inbound-agent:latest");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream printStream = new PrintStream(out, true, StandardCharsets.UTF_8);
+
+        assertDoesNotThrow(() -> launcher.terminateAfterFailedLaunch(null, printStream),
+                "null agent must not propagate any exception");
+        assertEquals("", out.toString(StandardCharsets.UTF_8),
+                "no output should be produced for a null agent");
     }
 }

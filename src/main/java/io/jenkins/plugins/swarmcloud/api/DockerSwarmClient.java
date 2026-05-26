@@ -14,12 +14,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.jenkins.plugins.swarmcloud.ServiceLabels;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
+import io.jenkins.plugins.swarmcloud.SwarmCloud;
 import static io.jenkins.plugins.swarmcloud.security.InputValidator.isBlank;
 import static io.jenkins.plugins.swarmcloud.security.InputValidator.isNotBlank;
 import io.jenkins.plugins.swarmcloud.SwarmComputerLauncher;
 import io.jenkins.plugins.swarmcloud.SwarmConfigFile;
 import io.jenkins.plugins.swarmcloud.SwarmSecretConfig;
 import io.jenkins.plugins.swarmcloud.config.DockerCredentialsHelper;
+import jenkins.model.Jenkins;
 import org.jenkinsci.plugins.docker.commons.credentials.DockerServerCredentials;
 
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -51,6 +53,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Client for Docker Swarm API operations.
@@ -519,27 +522,47 @@ public class DockerSwarmClient implements Closeable {
 
     /**
      * Lists services for a specific cloud.
+     *
+     * <p>Services created by older plugin versions are labelled with the constant
+     * {@link ServiceLabels#CLOUD_NAME} instead of the actual cloud name. To preserve those
+     * services on upgrade, the legacy label is accepted only when this Jenkins has a single
+     * Swarm cloud configured — otherwise we cannot tell which cloud owns them.</p>
      */
     @NonNull
     public List<Service> listServicesForCloud(@NonNull String cloudName) {
+        boolean acceptLegacyLabel = isSoleSwarmCloud();
         try {
             return listJenkinsServices().stream()
-                    .filter(service -> serviceBelongsToCloud(service, cloudName))
-                    .collect(java.util.stream.Collectors.toList());
+                    .filter(service -> serviceBelongsToCloud(service, cloudName, acceptLegacyLabel))
+                    .collect(Collectors.toList());
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Failed to list services for cloud: " + cloudName, e);
             return List.of();
         }
     }
 
-    private boolean serviceBelongsToCloud(Service service, String cloudName) {
+    private boolean serviceBelongsToCloud(Service service, String cloudName, boolean acceptLegacyLabel) {
         var serviceSpec = service.getSpec();
         Map<String, String> labels = serviceSpec != null ? serviceSpec.getLabels() : null;
         if (labels == null) {
             return false;
         }
         String serviceCloud = labels.get(ServiceLabels.CLOUD);
-        return cloudName.equals(serviceCloud) || ServiceLabels.CLOUD_NAME.equals(serviceCloud);
+        if (cloudName.equals(serviceCloud)) {
+            return true;
+        }
+        return acceptLegacyLabel && ServiceLabels.CLOUD_NAME.equals(serviceCloud);
+    }
+
+    private static boolean isSoleSwarmCloud() {
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null) {
+            return true;
+        }
+        long swarmCloudCount = jenkins.clouds.stream()
+                .filter(c -> c instanceof SwarmCloud)
+                .count();
+        return swarmCloudCount <= 1;
     }
 
     /**

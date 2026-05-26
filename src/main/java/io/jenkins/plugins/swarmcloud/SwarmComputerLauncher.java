@@ -114,7 +114,8 @@ public class SwarmComputerLauncher extends JNLPLauncher {
         }
     }
 
-    private void terminateAfterFailedLaunch(@CheckForNull SwarmAgent agent, PrintStream logger) {
+    // Package-private for tests.
+    void terminateAfterFailedLaunch(@CheckForNull SwarmAgent agent, PrintStream logger) {
         if (agent == null) {
             return;
         }

@@ -326,14 +326,13 @@ public class SwarmCloud extends Cloud {
         }
 
         boolean oneShotTemplate = template.resolve().isOneShot();
-        int currentTemplateInstances = template.getCurrentInstances();
-        int workloadToProvision = oneShotTemplate
-                ? Math.max(0, excessWorkload - currentTemplateInstances)
-                : excessWorkload;
+        int workloadToProvision = effectiveWorkload(template, oneShotTemplate, excessWorkload);
         int availableCapacity = maxConcurrentAgents - countProvisionedOrPlannedAgents();
         int toProvision = Math.min(workloadToProvision, availableCapacity);
         toProvision = Math.min(toProvision, template.getAvailableCapacity());
         if (oneShotTemplate) {
+            // One-shot agents are single-use: provision at most one per call to avoid
+            // the n+1 race where Jenkins re-asks before the in-flight agent registers.
             toProvision = Math.min(toProvision, 1);
         }
 
@@ -361,6 +360,21 @@ public class SwarmCloud extends Cloud {
         }
 
         return plannedNodes;
+    }
+
+    /**
+     * Calculates how much of {@code excessWorkload} still needs new agents.
+     *
+     * <p>For one-shot templates, an in-flight (reserved but not yet registered) agent already
+     * covers part of the workload — Jenkins keeps re-asking until the agent shows up, and
+     * without this adjustment we would over-provision and orphan an n+1 service per build.
+     * Non-one-shot templates can serve multiple builds, so the full workload is requested.</p>
+     */
+    private static int effectiveWorkload(SwarmAgentTemplate template, boolean oneShotTemplate, int excessWorkload) {
+        if (!oneShotTemplate) {
+            return excessWorkload;
+        }
+        return Math.max(0, excessWorkload - template.getCurrentInstances());
     }
 
     /**
