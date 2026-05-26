@@ -243,6 +243,11 @@ public class SwarmAgentStep extends Step implements Serializable {
             agentName = agentTemplate.generateAgentName();
             logger.println("Creating Swarm service for agent: " + agentName);
 
+            // Pre-increment the template counter so that concurrent provision() / canProvision()
+            // checks see this in-flight reservation. The counter is released on failure via the
+            // finally block; on success SwarmAgent._terminate() owns the decrement.
+            agentTemplate.incrementInstances();
+            boolean ownsReservation = true;
             try {
                 String serviceId = swarmCloud.getDockerClient().createService(
                         agentName,
@@ -250,7 +255,8 @@ public class SwarmAgentStep extends Step implements Serializable {
                         swarmCloud.getEffectiveJenkinsUrl(),
                         SwarmComputerLauncher.getAgentSecret(agentName),
                         swarmCloud.getSwarmNetwork(),
-                        swarmCloud.name
+                        swarmCloud.name,
+                        false
                 );
 
                 logger.println("Created Docker Swarm service: " + serviceId);
@@ -264,6 +270,7 @@ public class SwarmAgentStep extends Step implements Serializable {
                 );
 
                 jenkins.addNode(agent);
+                ownsReservation = false; // handed off to SwarmAgent
                 logger.println("Agent registered: " + agentName);
                 logger.println("Agent label: " + (step.getLabel() != null ? step.getLabel() : agentTemplate.getLabelString()));
 
@@ -288,6 +295,10 @@ public class SwarmAgentStep extends Step implements Serializable {
                 SwarmAuditLog.logProvisionFailure(swarmCloud.name, agentTemplate.getName(), e.getMessage());
                 getContext().onFailure(e);
                 return true;
+            } finally {
+                if (ownsReservation) {
+                    agentTemplate.decrementInstances();
+                }
             }
         }
 

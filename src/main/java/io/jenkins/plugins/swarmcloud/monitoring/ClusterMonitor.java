@@ -326,7 +326,8 @@ public class ClusterMonitor extends AsyncPeriodicWork {
      * This ensures the dashboard shows accurate agent counts even after service failures or manual deletions.
      * Uses atomic compare-and-set to avoid race conditions with concurrent provisioning.
      */
-    private void synchronizeTemplateCounters(SwarmCloud cloud, List<Service> services) {
+    // Package-private for tests.
+    void synchronizeTemplateCounters(SwarmCloud cloud, List<Service> services) {
         // Count services per template
         Map<String, Integer> templateServiceCount = new java.util.HashMap<>();
 
@@ -355,10 +356,15 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             int currentCount = counter.get();
 
             if (currentCount != actualCount) {
-                // If current > actual, services were removed - safe to sync down
-                // If current < actual, provisioning happened - only sync if diff > 1
-                // (allows for 1 in-flight provisioning)
-                if (currentCount > actualCount || actualCount - currentCount > 1) {
+                // Allow a ±1 buffer to avoid racing with in-flight provisioning: between
+                // SwarmCloud.provision()'s pre-increment and ProvisioningCallback creating the
+                // Docker service there is a window where the counter is +1 but the service has
+                // not yet been registered with the Swarm API. Without this buffer, the monitor
+                // would force the counter back to 0 and that increment would be lost forever
+                // (since the success path of ProvisioningCallback does not re-increment).
+                // The symmetric tolerance also covers a missed-decrement case while we wait one
+                // more cycle for confirmation.
+                if (Math.abs(currentCount - actualCount) > 1) {
                     if (counter.compareAndSet(currentCount, actualCount)) {
                         LOGGER.log(Level.INFO, "Synchronized template ''{0}'' counter: {1} -> {2}",
                                 new Object[]{templateName, currentCount, actualCount});

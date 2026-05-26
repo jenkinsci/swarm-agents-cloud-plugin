@@ -258,6 +258,11 @@ public class SwarmRestApi implements RootAction {
             return;
         }
 
+        // Pre-increment so concurrent provision()/canProvision() checks see this reservation.
+        // Mirrors the pattern in SwarmCloud.provision(); the counter is released on failure via
+        // finally, and handed off to SwarmAgent._terminate() on success.
+        tmpl.incrementInstances();
+        boolean ownsReservation = true;
         try {
             String agentName = tmpl.generateAgentName();
             String serviceId = swarmCloud.getDockerClient().createService(
@@ -266,11 +271,13 @@ public class SwarmRestApi implements RootAction {
                     swarmCloud.getEffectiveJenkinsUrl(),
                     SwarmComputerLauncher.getAgentSecret(agentName),
                     swarmCloud.getSwarmNetwork(),
-                    swarmCloud.name
+                    swarmCloud.name,
+                    false
             );
 
             SwarmAgent agent = new SwarmAgent(agentName, tmpl, swarmCloud.name, serviceId);
             Jenkins.get().addNode(agent);
+            ownsReservation = false; // handed off to SwarmAgent
 
             JSONObject result = new JSONObject();
             result.put("agentName", agentName);
@@ -284,6 +291,10 @@ public class SwarmRestApi implements RootAction {
             writeJsonError(rsp, 400, "Invalid configuration: " + e.getMessage());
         } catch (RuntimeException e) {
             writeJsonError(rsp, 500, "Unexpected error: " + e.getMessage());
+        } finally {
+            if (ownsReservation) {
+                tmpl.decrementInstances();
+            }
         }
     }
 

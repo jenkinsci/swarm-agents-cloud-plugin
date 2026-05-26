@@ -281,4 +281,34 @@ class SwarmAgentTest {
         // Cloud is not registered, so template should be null
         assertNull(agent.getTemplate());
     }
+
+    @Test
+    void testTerminateIsIdempotent() throws Exception {
+        jenkins.jenkins.clouds.add(cloud);
+        cloud.setTemplates(java.util.List.of(template));
+        template.incrementInstances();
+        assertEquals(1, template.getCurrentInstances());
+
+        SwarmAgent agent = new SwarmAgent(
+                "idempotent-agent",
+                template,
+                "test-cloud",
+                "service-idempotent"
+        );
+
+        hudson.util.StreamTaskListener listener =
+                hudson.util.StreamTaskListener.fromStdout();
+
+        // First termination: decrement fires.
+        agent._terminate(listener);
+        int afterFirst = template.getCurrentInstances();
+
+        // Second termination from a racing path (e.g. launch-failure cleanup after retention
+        // already terminated): must be a no-op and must NOT decrement again.
+        agent._terminate(listener);
+        int afterSecond = template.getCurrentInstances();
+
+        assertEquals(0, afterFirst, "first _terminate should decrement counter once");
+        assertEquals(afterFirst, afterSecond, "second _terminate must not decrement again");
+    }
 }

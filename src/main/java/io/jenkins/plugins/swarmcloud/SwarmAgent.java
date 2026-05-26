@@ -17,6 +17,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -33,6 +34,10 @@ public class SwarmAgent extends AbstractCloudSlave {
     private final String serviceId;
     private final String templateName;
     private final long createdTime;
+    /** Guards {@link #_terminate(TaskListener)} so it runs at most once per JVM. Transient: a
+     * deserialised agent must still be terminable. Re-initialised in {@link #readResolve()} since
+     * XStream does not run field initialisers on transient fields. */
+    private transient AtomicBoolean terminated = new AtomicBoolean(false);
 
     @DataBoundConstructor
     public SwarmAgent(@NonNull String name,
@@ -83,6 +88,9 @@ public class SwarmAgent extends AbstractCloudSlave {
      */
     @Override
     protected Object readResolve() {
+        if (terminated == null) {
+            terminated = new AtomicBoolean(false);
+        }
         // Call parent implementation to properly restore agent state
         return super.readResolve();
     }
@@ -146,6 +154,14 @@ public class SwarmAgent extends AbstractCloudSlave {
     @Override
     protected void _terminate(TaskListener listener) throws IOException, InterruptedException {
         PrintStream logger = listener.getLogger();
+        // Idempotency guard: two paths can race to call us (retention strategy + launch-failure
+        // cleanup, or manual remove + idle timeout). Without this, decrementInstances() would fire
+        // twice and could under-count if a new agent was provisioned between the two terminations.
+        if (!terminated.compareAndSet(false, true)) {
+            LOGGER.log(Level.FINE, "Swarm agent {0} already terminated, skipping duplicate _terminate", name);
+            logger.println("Agent already terminated: " + name);
+            return;
+        }
         LOGGER.log(Level.FINE, "Terminating Swarm agent: {0}, service: {1}", new Object[]{name, serviceId});
 
         // Determine termination reason
