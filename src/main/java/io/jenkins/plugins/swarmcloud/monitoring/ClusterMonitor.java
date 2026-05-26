@@ -225,7 +225,8 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                     } catch (RuntimeException e) {
                         // Keep the service visible so operators can see what's stuck.
                         LOGGER.log(Level.WARNING, "Failed to remove completed one-shot service: " + serviceId, e);
-                        info.setError("Failed to remove completed service: " + e.getMessage());
+                        String reason = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                        info.setError("Failed to remove completed service: " + reason);
                     }
                 }
 

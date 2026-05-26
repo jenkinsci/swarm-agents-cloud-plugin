@@ -326,6 +326,9 @@ public class SwarmCloud extends Cloud {
         }
 
         boolean oneShotTemplate = template.resolve().isOneShot();
+        // For one-shot templates the in-flight count is subtracted twice on purpose: once from the
+        // workload (effectiveWorkload) and once from the cloud-wide capacity (availableCapacity).
+        // Both caps must independently reflect reservations so neither path can over-provision.
         int workloadToProvision = effectiveWorkload(template, oneShotTemplate, excessWorkload);
         int availableCapacity = maxConcurrentAgents - countProvisionedOrPlannedAgents();
         int toProvision = Math.min(workloadToProvision, availableCapacity);

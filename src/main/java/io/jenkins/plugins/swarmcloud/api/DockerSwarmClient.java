@@ -557,7 +557,9 @@ public class DockerSwarmClient implements Closeable {
     private static boolean isSoleSwarmCloud() {
         Jenkins jenkins = Jenkins.getInstanceOrNull();
         if (jenkins == null) {
-            return true;
+            // No Jenkins instance means we cannot verify the single-cloud condition documented on
+            // listServicesForCloud, so reject the legacy label rather than accepting it blindly.
+            return false;
         }
         long swarmCloudCount = jenkins.clouds.stream()
                 .filter(c -> c instanceof SwarmCloud)
