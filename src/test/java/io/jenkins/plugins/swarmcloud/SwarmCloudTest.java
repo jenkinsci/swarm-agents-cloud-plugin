@@ -159,4 +159,35 @@ class SwarmCloudTest {
         assertTrue(plannedNodes.isEmpty(),
                 "one-shot templates should not provision an n+1 agent for already reserved workload");
     }
+
+    @Test
+    void effectiveWorkloadNonOneShotReturnsFullWorkload() {
+        // Reusable templates serve many builds; the full workload is always requested.
+        assertEquals(3, SwarmCloud.effectiveWorkload(false, 3, 5, 2));
+    }
+
+    @Test
+    void effectiveWorkloadOneShotInFlightReservationCoversWorkload() {
+        // 1 build queued, 1 reserved-but-not-yet-connected agent already covers it.
+        assertEquals(0, SwarmCloud.effectiveWorkload(true, 1, 1, 0));
+    }
+
+    @Test
+    void effectiveWorkloadOneShotSubtractsOnlyInFlight() {
+        // 2 builds queued, 1 agent in-flight (reserved, not connected) -> 1 still uncovered.
+        assertEquals(1, SwarmCloud.effectiveWorkload(true, 2, 1, 0));
+    }
+
+    @Test
+    void effectiveWorkloadOneShotDoesNotSubtractConnectedBusyAgents() {
+        // Issue #16: a second build is queued while a connected one-shot agent is busy on
+        // the first build. currentInstances=1 (the busy agent), connected=1 -> in-flight=0,
+        // so the queued build must still be provisioned instead of waiting for termination.
+        assertEquals(1, SwarmCloud.effectiveWorkload(true, 1, 1, 1));
+    }
+
+    @Test
+    void effectiveWorkloadNeverNegative() {
+        assertEquals(0, SwarmCloud.effectiveWorkload(true, 0, 3, 0));
+    }
 }

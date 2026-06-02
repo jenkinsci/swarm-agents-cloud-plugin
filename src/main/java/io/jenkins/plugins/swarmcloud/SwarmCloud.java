@@ -326,10 +326,8 @@ public class SwarmCloud extends Cloud {
         }
 
         boolean oneShotTemplate = template.resolve().isOneShot();
-        // For one-shot templates the in-flight count is subtracted twice on purpose: once from the
-        // workload (effectiveWorkload) and once from the cloud-wide capacity (availableCapacity).
-        // Both caps must independently reflect reservations so neither path can over-provision.
-        int workloadToProvision = effectiveWorkload(template, oneShotTemplate, excessWorkload);
+        int workloadToProvision = effectiveWorkload(
+                oneShotTemplate, excessWorkload, template.getCurrentInstances(), countConnectedAgents(template));
         int availableCapacity = maxConcurrentAgents - countProvisionedOrPlannedAgents();
         int toProvision = Math.min(workloadToProvision, availableCapacity);
         toProvision = Math.min(toProvision, template.getAvailableCapacity());
@@ -366,18 +364,57 @@ public class SwarmCloud extends Cloud {
     }
 
     /**
+     * Counts one-shot agents from this template that have already connected (online computers).
+     *
+     * <p>A connected agent has picked up its single build, which has therefore left the queue
+     * (and {@code excessWorkload}). Such agents are no longer "in flight" and must not be
+     * subtracted from the workload again — see {@link #effectiveWorkload(boolean, int, int, int)}.</p>
+     */
+    int countConnectedAgents(@NonNull SwarmAgentTemplate template) {
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null) {
+            return 0;
+        }
+        String templateName = template.getName();
+        int count = 0;
+        for (Node node : jenkins.getNodes()) {
+            if (node instanceof SwarmAgent) {
+                SwarmAgent agent = (SwarmAgent) node;
+                if (name.equals(agent.getCloudName()) && templateName.equals(agent.getTemplateName())) {
+                    Computer computer = agent.toComputer();
+                    if (computer != null && computer.isOnline()) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
      * Calculates how much of {@code excessWorkload} still needs new agents.
      *
-     * <p>For one-shot templates, an in-flight (reserved but not yet registered) agent already
-     * covers part of the workload — Jenkins keeps re-asking until the agent shows up, and
-     * without this adjustment we would over-provision and orphan an n+1 service per build.
-     * Non-one-shot templates can serve multiple builds, so the full workload is requested.</p>
+     * <p>For one-shot templates only the <em>in-flight</em> reservations — agents that have been
+     * provisioned but have not yet connected — cover queued workload. Jenkins keeps re-asking
+     * until such an agent shows up, so without subtracting them we would over-provision and
+     * orphan an n+1 service per build (issue #12).</p>
+     *
+     * <p>Agents that have already connected ({@code connectedInstances}) are busy on their single
+     * build, which has therefore left the queue and {@code excessWorkload}. Subtracting them as
+     * well would starve additional builds — only one one-shot agent would ever run at a time
+     * (issue #16). In-flight count is therefore {@code currentInstances - connectedInstances}.</p>
+     *
+     * <p>Non-one-shot templates can serve multiple builds, so the full workload is requested.</p>
+     *
+     * <p>Package-private and pure for unit testing.</p>
      */
-    private static int effectiveWorkload(SwarmAgentTemplate template, boolean oneShotTemplate, int excessWorkload) {
+    static int effectiveWorkload(boolean oneShotTemplate, int excessWorkload,
+                                 int currentInstances, int connectedInstances) {
         if (!oneShotTemplate) {
             return excessWorkload;
         }
-        return Math.max(0, excessWorkload - template.getCurrentInstances());
+        int inFlight = Math.max(0, currentInstances - connectedInstances);
+        return Math.max(0, excessWorkload - inFlight);
     }
 
     /**
