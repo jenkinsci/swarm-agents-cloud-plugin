@@ -405,4 +405,49 @@ class SwarmAgentTemplateTest {
         assertTrue(resolved.isOneShot(),
                 "child must inherit oneShot=true from parent template");
     }
+
+    @Test
+    void resolveInheritsAcrossMultipleLevels() {
+        // base <- mid <- leaf : a value set only on the base must reach the leaf.
+        // cpuLimit defaults to null (no constructor default), so it cleanly tests
+        // whether the value flows two levels down without being masked.
+        SwarmAgentTemplate base = new SwarmAgentTemplate("base");
+        base.setCpuLimit("2.5");
+        base.setOneShot(true);
+
+        SwarmAgentTemplate mid = new SwarmAgentTemplate("mid");
+        mid.setInheritFrom("base");
+        mid.setLabelString("mid-label");
+
+        SwarmAgentTemplate leaf = new SwarmAgentTemplate("leaf");
+        leaf.setInheritFrom("mid");
+        leaf.setNumExecutors(3);
+
+        SwarmCloud cloud = new SwarmCloud("c");
+        cloud.setTemplates(List.of(base, mid, leaf));
+
+        SwarmAgentTemplate resolved = leaf.resolve();
+        assertEquals("2.5", resolved.getCpuLimit(),
+                "leaf must inherit cpuLimit from the base two levels up");
+        assertTrue(resolved.isOneShot(),
+                "leaf must inherit oneShot from the base two levels up");
+        assertEquals(3, resolved.getNumExecutors(),
+                "leaf keeps its own numExecutors");
+    }
+
+    @Test
+    void resolveDetectsInheritanceCycleWithoutStackOverflow() {
+        // a <- b <- a : must terminate instead of recursing forever.
+        SwarmAgentTemplate a = new SwarmAgentTemplate("a");
+        a.setInheritFrom("b");
+        SwarmAgentTemplate b = new SwarmAgentTemplate("b");
+        b.setInheritFrom("a");
+
+        SwarmCloud cloud = new SwarmCloud("c");
+        cloud.setTemplates(List.of(a, b));
+
+        SwarmAgentTemplate resolved = assertDoesNotThrow(a::resolve,
+                "cyclic inheritance must not cause infinite recursion");
+        assertNotNull(resolved);
+    }
 }
