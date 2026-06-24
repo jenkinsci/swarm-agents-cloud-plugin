@@ -2,9 +2,14 @@ package io.jenkins.plugins.swarmcloud.pipeline;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import hudson.EnvVars;
 import hudson.Extension;
+import hudson.FilePath;
+import hudson.model.Computer;
+import hudson.model.Node;
 import hudson.model.TaskListener;
 import hudson.slaves.Cloud;
+import hudson.slaves.WorkspaceList;
 import io.jenkins.plugins.swarmcloud.SwarmAgent;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
 import io.jenkins.plugins.swarmcloud.SwarmCloud;
@@ -25,6 +30,7 @@ import java.io.PrintStream;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -158,6 +164,50 @@ public class SwarmAgentStep extends Step implements Serializable {
     }
 
     /**
+     * Provisions a {@link Node} for the pipeline step and registers it with Jenkins.
+     *
+     * <p>Extracted behind an interface so tests can substitute an already-online stand-in agent
+     * (real Docker Swarm provisioning is unavailable in unit tests). The default implementation
+     * creates a Docker Swarm service and a {@link SwarmAgent}.</p>
+     */
+    @FunctionalInterface
+    interface PipelineNodeProvisioner {
+        @NonNull
+        Node provision(@NonNull SwarmCloud cloud, @NonNull SwarmAgentTemplate template,
+                       @NonNull String agentName, @NonNull SwarmAgentStep step,
+                       @NonNull PrintStream logger) throws Exception;
+    }
+
+    /** Default (production) provisioner: creates a Docker Swarm service + {@link SwarmAgent}. */
+    static final PipelineNodeProvisioner DEFAULT_NODE_PROVISIONER =
+            (cloud, template, agentName, step, logger) -> {
+                String serviceId = cloud.getDockerClient().createService(
+                        agentName,
+                        template,
+                        cloud.getEffectiveJenkinsUrl(),
+                        SwarmComputerLauncher.getAgentSecret(agentName),
+                        cloud.getSwarmNetwork(),
+                        cloud.name,
+                        false
+                );
+                logger.println("Created Docker Swarm service: " + serviceId);
+
+                SwarmAgent agent = new SwarmAgent(
+                        agentName,
+                        template,
+                        cloud.name,
+                        serviceId,
+                        step.getIdleTimeout()
+                );
+                Jenkins.get().addNode(agent);
+                SwarmAuditLog.logProvision(cloud.name, template.getName(), agentName, serviceId);
+                return agent;
+            };
+
+    /** Active provisioner; overridable by tests. Package-private for that reason. */
+    static volatile PipelineNodeProvisioner nodeProvisioner = DEFAULT_NODE_PROVISIONER;
+
+    /**
      * Execution for SwarmAgentStep.
      */
     private static class SwarmAgentStepExecution extends StepExecution {
@@ -166,7 +216,8 @@ public class SwarmAgentStep extends Step implements Serializable {
 
         private final SwarmAgentStep step;
         private String agentName;
-        private String cloudName;
+        private final String cloudName;
+        private transient volatile Future<?> bodyLaunchTask;
 
         SwarmAgentStepExecution(SwarmAgentStep step, StepContext context) {
             super(context);
@@ -248,50 +299,14 @@ public class SwarmAgentStep extends Step implements Serializable {
             // finally block; on success SwarmAgent._terminate() owns the decrement.
             agentTemplate.incrementInstances();
             boolean ownsReservation = true;
+            Node node;
             try {
-                String serviceId = swarmCloud.getDockerClient().createService(
-                        agentName,
-                        agentTemplate,
-                        swarmCloud.getEffectiveJenkinsUrl(),
-                        SwarmComputerLauncher.getAgentSecret(agentName),
-                        swarmCloud.getSwarmNetwork(),
-                        swarmCloud.name,
-                        false
-                );
-
-                logger.println("Created Docker Swarm service: " + serviceId);
-
-                SwarmAgent agent = new SwarmAgent(
-                        agentName,
-                        agentTemplate,
-                        swarmCloud.name,
-                        serviceId,
-                        step.getIdleTimeout()
-                );
-
-                jenkins.addNode(agent);
-                ownsReservation = false; // handed off to SwarmAgent
+                node = nodeProvisioner.provision(swarmCloud, agentTemplate, agentName, step, logger);
+                ownsReservation = false; // handed off to the provisioned node
                 logger.println("Agent registered: " + agentName);
                 logger.println("Agent label: " + (step.getLabel() != null ? step.getLabel() : agentTemplate.getLabelString()));
-
-                // Audit log
-                SwarmAuditLog.logProvision(swarmCloud.name, agentTemplate.getName(), agentName, serviceId);
-
-                // Execute the body on the new agent
-                // The body will be scheduled on the agent via the label
-                getContext().newBodyInvoker()
-                        .withCallback(new SwarmAgentCallback(agentName, cloudName))
-                        .start();
-
-                return false; // Not complete yet, waiting for body
-
-            } catch (IOException e) {
+            } catch (IOException | RuntimeException e) {
                 LOGGER.log(Level.SEVERE, "Failed to provision pipeline agent", e);
-                SwarmAuditLog.logProvisionFailure(swarmCloud.name, agentTemplate.getName(), e.getMessage());
-                getContext().onFailure(e);
-                return true;
-            } catch (RuntimeException e) {
-                LOGGER.log(Level.SEVERE, "Unexpected error provisioning pipeline agent", e);
                 SwarmAuditLog.logProvisionFailure(swarmCloud.name, agentTemplate.getName(), e.getMessage());
                 getContext().onFailure(e);
                 return true;
@@ -300,10 +315,78 @@ public class SwarmAgentStep extends Step implements Serializable {
                     agentTemplate.decrementInstances();
                 }
             }
+
+            // Wait for the agent to come online and run the body ON it. This must not block the
+            // CPS thread (agent connect can take a while), so it is done asynchronously.
+            final Node provisioned = node;
+            final int connectTimeoutSeconds = step.getConnectionTimeout();
+            bodyLaunchTask = Computer.threadPoolForRemoting.submit(
+                    () -> awaitAgentAndRunBody(provisioned, connectTimeoutSeconds, listener));
+
+            return false; // Not complete yet, waiting for body
+        }
+
+        /**
+         * Waits for the provisioned agent's computer to come online, then runs the step body on it.
+         * Any failure is reported through the step context.
+         */
+        private void awaitAgentAndRunBody(Node node, int connectTimeoutSeconds, TaskListener listener) {
+            try {
+                Computer computer = node.toComputer();
+                if (computer == null) {
+                    throw new IllegalStateException("Provisioned agent has no computer: " + agentName);
+                }
+                long deadline = System.currentTimeMillis() + connectTimeoutSeconds * 1000L;
+                while (!computer.isOnline()) {
+                    if (System.currentTimeMillis() > deadline) {
+                        throw new IllegalStateException("Swarm agent " + agentName
+                                + " did not come online within " + connectTimeoutSeconds + "s");
+                    }
+                    Thread.sleep(500L);
+                }
+                runBodyOnNode(node, computer, listener);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                getContext().onFailure(e);
+            } catch (Exception e) {
+                getContext().onFailure(e);
+            }
+        }
+
+        /**
+         * Establishes the node context ({@link Computer}, workspace {@link FilePath}, {@link EnvVars})
+         * for the provisioned agent and starts the body with it, so {@code sh} / {@code pwd} and other
+         * workspace-bound steps execute on the Swarm agent rather than the enclosing context.
+         */
+        private void runBodyOnNode(Node node, Computer computer, TaskListener listener) throws Exception {
+            FilePath root = node.getRootPath();
+            if (root == null) {
+                throw new IllegalStateException("Workspace unavailable for Swarm agent: " + agentName);
+            }
+            FilePath workspace = root.child("workspace");
+            workspace.mkdirs();
+
+            EnvVars env = computer.getEnvironment();
+            env.overrideExpandingAll(computer.buildEnvironment(listener));
+            env.put("NODE_NAME", computer.getName());
+            env.put("EXECUTOR_NUMBER", "0");
+            env.put("WORKSPACE", workspace.getRemote());
+            FilePath tempDir = WorkspaceList.tempDir(workspace);
+            if (tempDir != null) {
+                env.put("WORKSPACE_TMP", tempDir.getRemote());
+            }
+
+            getContext().newBodyInvoker()
+                    .withCallback(new SwarmAgentCallback(agentName, cloudName))
+                    .withContexts(computer, env, workspace)
+                    .start();
         }
 
         @Override
         public void stop(Throwable cause) throws Exception {
+            if (bodyLaunchTask != null) {
+                bodyLaunchTask.cancel(true);
+            }
             // Terminate the agent when the step is stopped
             terminateAgent();
         }
@@ -412,6 +495,17 @@ public class SwarmAgentStep extends Step implements Serializable {
             Set<Class<?>> context = new HashSet<>();
             context.add(TaskListener.class);
             context.add(FlowNode.class);
+            return context;
+        }
+
+        @Override
+        public Set<? extends Class<?>> getProvidedContext() {
+            // The body runs on the provisioned Swarm agent: it gets that node's computer,
+            // workspace and environment so workspace-bound steps (sh, pwd, ...) target it.
+            Set<Class<?>> context = new HashSet<>();
+            context.add(Computer.class);
+            context.add(FilePath.class);
+            context.add(EnvVars.class);
             return context;
         }
 
