@@ -151,6 +151,33 @@ templates:
         value: "-Xmx1g"
 ```
 
+Inheritance is resolved across **multiple levels**, so you can build a hierarchy
+(`base` → intermediate → leaf) and each template only declares what it adds:
+
+```yaml
+templates:
+  - name: "base"                 # shared defaults for everything
+    image: "jenkins/inbound-agent:latest"
+    cpuLimit: "2.0"
+
+  - name: "jvm"                  # adds JVM-specific settings
+    inheritFrom: "base"
+    environmentVariables:
+      - key: "JAVA_OPTS"
+        value: "-XX:MaxRAMPercentage=75"
+
+  - name: "maven"               # leaf: inherits the whole base → jvm chain
+    inheritFrom: "jvm"
+    labelString: "maven"
+```
+
+Resolution rules:
+
+- Descendant values take precedence over ancestors; lists (environment variables,
+  mounts, capabilities, etc.) are merged across the whole chain.
+- Cyclic references (`a` → `b` → `a`) are detected and stopped with a warning
+  instead of recursing forever.
+
 ### Ephemeral / One-Shot Agents
 
 Set `oneShot: true` on a template to make agents self-destruct immediately after a single

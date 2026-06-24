@@ -32,6 +32,7 @@ import static io.jenkins.plugins.swarmcloud.security.InputValidator.isNotBlank;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -1032,22 +1033,48 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     }
 
     /**
-     * Resolves this template by merging with parent template if inheritFrom is set.
+     * Resolves this template by merging with its parent template if inheritFrom is set.
      * Similar to Kubernetes plugin podTemplate inheritance.
+     *
+     * <p>Inheritance is resolved recursively, so multi-level chains
+     * ({@code base <- mid <- leaf}) merge the whole ancestor chain, with descendant
+     * values taking precedence over ancestors. Cyclic chains are detected and stopped
+     * to avoid infinite recursion.</p>
      *
      * @return Resolved template with inherited values
      */
     @NonNull
     public SwarmAgentTemplate resolve() {
+        return resolve(new HashSet<>());
+    }
+
+    /**
+     * Recursive worker for {@link #resolve()}.
+     *
+     * @param visited names of templates already on the current resolution chain; used to
+     *                break inheritance cycles.
+     */
+    @NonNull
+    private SwarmAgentTemplate resolve(@NonNull Set<String> visited) {
         if (!isNotBlank(inheritFrom) || parent == null) {
             return this;
         }
 
-        SwarmAgentTemplate parentTemplate = parent.getTemplateByName(inheritFrom);
-        if (parentTemplate == null) {
+        // Cycle guard: if this template is already on the chain, stop before recursing again.
+        if (!visited.add(this.name)) {
+            LOGGER.warning("Cyclic template inheritance detected at '" + this.name
+                    + "', stopping inheritance resolution");
+            return this;
+        }
+
+        SwarmAgentTemplate parentRaw = parent.getTemplateByName(inheritFrom);
+        if (parentRaw == null) {
             LOGGER.warning("Parent template '" + inheritFrom + "' not found, using current template as-is");
             return this;
         }
+
+        // Resolve ancestors first so multi-level chains merge the whole hierarchy.
+        SwarmAgentTemplate parentTemplate = parentRaw.resolve(visited);
 
         // Create merged template
         SwarmAgentTemplate resolved = new SwarmAgentTemplate(this.name);
