@@ -450,4 +450,30 @@ class SwarmAgentTemplateTest {
                 "cyclic inheritance must not cause infinite recursion");
         assertNotNull(resolved);
     }
+
+    @Test
+    void resolveAppliesNearestAncestorOverrideAcrossLevels() {
+        // base <- mid <- leaf : mid overrides base's cpuLimit; a value only on base
+        // (memoryLimit) must still reach the leaf through the untouched mid level.
+        SwarmAgentTemplate base = new SwarmAgentTemplate("base");
+        base.setCpuLimit("1.0");
+        base.setMemoryLimit("1g");
+
+        SwarmAgentTemplate mid = new SwarmAgentTemplate("mid");
+        mid.setInheritFrom("base");
+        mid.setCpuLimit("2.0"); // overrides the base
+
+        SwarmAgentTemplate leaf = new SwarmAgentTemplate("leaf");
+        leaf.setInheritFrom("mid");
+        // leaf sets neither cpuLimit nor memoryLimit
+
+        SwarmCloud cloud = new SwarmCloud("c");
+        cloud.setTemplates(List.of(base, mid, leaf));
+
+        SwarmAgentTemplate resolved = leaf.resolve();
+        assertEquals("2.0", resolved.getCpuLimit(),
+                "leaf must inherit mid's override, not the base value");
+        assertEquals("1g", resolved.getMemoryLimit(),
+                "leaf must inherit memoryLimit from the base through the untouched mid level");
+    }
 }
