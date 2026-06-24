@@ -30,7 +30,6 @@ import java.io.PrintStream;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -217,7 +216,6 @@ public class SwarmAgentStep extends Step implements Serializable {
         private final SwarmAgentStep step;
         private String agentName;
         private final String cloudName;
-        private transient volatile Future<?> bodyLaunchTask;
 
         SwarmAgentStepExecution(SwarmAgentStep step, StepContext context) {
             super(context);
@@ -320,7 +318,7 @@ public class SwarmAgentStep extends Step implements Serializable {
             // CPS thread (agent connect can take a while), so it is done asynchronously.
             final Node provisioned = node;
             final int connectTimeoutSeconds = step.getConnectionTimeout();
-            bodyLaunchTask = Computer.threadPoolForRemoting.submit(
+            Computer.threadPoolForRemoting.execute(
                     () -> awaitAgentAndRunBody(provisioned, connectTimeoutSeconds, listener));
 
             return false; // Not complete yet, waiting for body
@@ -338,6 +336,11 @@ public class SwarmAgentStep extends Step implements Serializable {
                 }
                 long deadline = System.currentTimeMillis() + connectTimeoutSeconds * 1000L;
                 while (!computer.isOnline()) {
+                    Jenkins jenkins = Jenkins.getInstanceOrNull();
+                    if (jenkins == null || jenkins.getNode(agentName) == null) {
+                        // Agent removed (e.g. the step was stopped) — abandon the launch.
+                        return;
+                    }
                     if (System.currentTimeMillis() > deadline) {
                         throw new IllegalStateException("Swarm agent " + agentName
                                 + " did not come online within " + connectTimeoutSeconds + "s");
@@ -384,10 +387,8 @@ public class SwarmAgentStep extends Step implements Serializable {
 
         @Override
         public void stop(Throwable cause) throws Exception {
-            if (bodyLaunchTask != null) {
-                bodyLaunchTask.cancel(true);
-            }
-            // Terminate the agent when the step is stopped
+            // Terminate the agent when the step is stopped; this also unblocks awaitAgentAndRunBody,
+            // which abandons the launch once the node is gone.
             terminateAgent();
         }
 
