@@ -4,6 +4,7 @@ import com.github.dockerjava.api.model.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.AsyncPeriodicWork;
+import hudson.model.Computer;
 import hudson.model.Node;
 import hudson.model.TaskListener;
 import hudson.slaves.Cloud;
@@ -148,6 +149,17 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
                 boolean isTooOld = createdTime > 0 && (now - createdTime) > MAX_SERVICE_AGE;
 
                 if (isOrphan || isTooOld) {
+                    // Never remove a service whose agent is still connected and running a build: a one-shot
+                    // node can be momentarily absent from getNodes() at sweep time (e.g. a -noReconnect agent
+                    // reconnecting) yet still be mid-build. Removing it aborts the build with
+                    // "AgentOfflineException: Unable to create live FilePath ... Connection was broken".
+                    Computer computer = jenkins.getComputer(agentName);
+                    if (computer != null && computer.isOnline() && !computer.isIdle()) {
+                        LOGGER.log(Level.FINE,
+                                "Keeping service {0}: agent still online and running a build", serviceName);
+                        continue;
+                    }
+
                     String reason = isOrphan ? "orphan (no Jenkins node)" : "too old";
                     LOGGER.log(Level.FINE, "Removing {0} service: {1}", new Object[]{reason, serviceName});
 

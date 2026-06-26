@@ -13,6 +13,7 @@ import io.jenkins.plugins.swarmcloud.ServiceLabels;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.model.AsyncPeriodicWork;
+import hudson.model.Computer;
 import hudson.model.TaskListener;
 import hudson.slaves.Cloud;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
@@ -218,6 +219,18 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 }
 
                 if ("complete".equals(info.getState()) && isOneShotService(cloud, service)) {
+                    // A one-shot agent launched with -noReconnect can momentarily report a "complete"
+                    // Docker task while its Jenkins build is still in progress. Removing the service then
+                    // aborts the running build with "AgentOfflineException: Unable to create live FilePath
+                    // ... Connection was broken". Never remove a service whose agent computer is still
+                    // online and busy.
+                    if (isAgentOnlineAndBusy(service)) {
+                        LOGGER.log(Level.FINE,
+                                "Keeping one-shot service {0}: agent still online and running a build", serviceId);
+                        monitoredServices.add(service);
+                        status.addService(info);
+                        continue;
+                    }
                     LOGGER.log(Level.FINE, "Removing completed one-shot service: {0}", serviceId);
                     try {
                         dockerClient.removeService(serviceId);
@@ -261,6 +274,28 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             status.setErrorMessage(e.getMessage());
         }
         return status;
+    }
+
+    /**
+     * Returns true if the agent backing this service is still connected to the controller and actively
+     * running a build. Guards against removing a one-shot service out from under an in-progress build
+     * when its Docker task transiently reports "complete" (e.g. a -noReconnect agent that briefly dropped).
+     */
+    private boolean isAgentOnlineAndBusy(Service service) {
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null || service.getSpec() == null) {
+            return false;
+        }
+        Map<String, String> labels = service.getSpec().getLabels();
+        String agentName = labels != null ? labels.get(ServiceLabels.AGENT_NAME) : null;
+        if (agentName == null) {
+            agentName = service.getSpec().getName();
+        }
+        if (agentName == null) {
+            return false;
+        }
+        Computer computer = jenkins.getComputer(agentName);
+        return computer != null && computer.isOnline() && !computer.isIdle();
     }
 
     // Package-private for tests.
