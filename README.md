@@ -133,6 +133,53 @@ jenkins:
 | `capDrop` / `capDropString` | Linux capabilities to drop (requires Docker Engine 20.10+ / API 1.41+) |
 | `dnsServersString` | Custom DNS servers |
 
+### Connection, Timeouts & Retry
+
+These template fields control how long the plugin waits for an agent and how it
+retries provisioning. All are optional and fall back to the defaults below.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `connectionTimeoutSeconds` | Max time to wait for the agent to connect before giving up | 300 |
+| `idleTimeoutMinutes` | Idle time before a (non one-shot) agent is terminated | 30 |
+| `provisionRetryCount` | Number of provisioning retries on failure | 3 |
+| `provisionRetryDelayMs` | Initial delay between retries in ms (exponential backoff) | 1000 |
+
+```yaml
+templates:
+  - name: "build"
+    image: "jenkins/inbound-agent:latest"
+    connectionTimeoutSeconds: 300
+    idleTimeoutMinutes: 30
+    provisionRetryCount: 3
+    provisionRetryDelayMs: 1000
+```
+
+### Health Checks
+
+Attach a Docker container health check so the agent container is monitored while
+it runs. A health check is enabled only when `healthCheckCommand` is set — the
+plugin wraps the command as `CMD-SHELL`, so provide just the shell command.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `healthCheckCommand` | Shell command run inside the container to check health. Empty = no health check | — |
+| `healthCheckIntervalSeconds` | Time between checks | 30 |
+| `healthCheckTimeoutSeconds` | Time to wait for a single check before treating it as failed | 10 |
+| `healthCheckRetries` | Consecutive failures before the container is marked unhealthy | 3 |
+
+```yaml
+templates:
+  - name: "with-healthcheck"
+    image: "jenkins/inbound-agent:latest"
+    healthCheckCommand: "curl -f http://localhost:8080/ || exit 1"
+    healthCheckIntervalSeconds: 30
+    healthCheckTimeoutSeconds: 10
+    healthCheckRetries: 3
+```
+
+All of these fields are merged through template inheritance like the rest.
+
 ### Template Inheritance
 
 ```yaml
@@ -147,7 +194,7 @@ templates:
     inheritFrom: "base"
     labelString: "maven docker"
     environmentVariables:
-      - key: "MAVEN_OPTS"
+      - name: "MAVEN_OPTS"
         value: "-Xmx1g"
 ```
 
@@ -163,7 +210,7 @@ templates:
   - name: "jvm"                  # adds JVM-specific settings
     inheritFrom: "base"
     environmentVariables:
-      - key: "JAVA_OPTS"
+      - name: "JAVA_OPTS"
         value: "-XX:MaxRAMPercentage=75"
 
   - name: "maven"               # leaf: inherits the whole base → jvm chain
@@ -177,6 +224,11 @@ Resolution rules:
   mounts, capabilities, etc.) are merged across the whole chain.
 - Cyclic references (`a` → `b` → `a`) are detected and stopped with a warning
   instead of recursing forever.
+- Label matching uses the **resolved** template. A template with no effective
+  `labelString` — neither its own nor an inherited one, like a `base` kept only
+  for inheritance — matches only label-less jobs; it is **not** a catch-all and
+  will not provision agents for jobs that require a specific label. Labels declared
+  on an ancestor are inherited, so a leaf is matched by them too.
 
 ### Ephemeral / One-Shot Agents
 
@@ -234,6 +286,29 @@ templates:
       - secretName: "my-secret"
         fileName: "secret.txt"
         targetPath: "/run/secrets"
+```
+
+### Docker Configs
+
+Docker Swarm **configs** work like secrets but are meant for non-sensitive
+configuration data. Only `configName` is required; the other fields are optional.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `configName` | Name of the existing Docker Swarm config | Required |
+| `targetPath` | Mount path inside the container | `/{configName}` |
+| `fileName` | File name at the target location | Derived from `targetPath` |
+| `fileMode` | File permissions in octal (e.g. `0644`) | — |
+| `uid` / `gid` | Owner UID / GID of the file inside the container | — |
+
+```yaml
+templates:
+  - name: "with-configs"
+    configs:
+      - configName: "app-config"
+        targetPath: "/etc/app/config.ini"
+        fileName: "config.ini"
+        fileMode: "0644"
 ```
 
 ### Registry Authentication (Private Images)
@@ -344,6 +419,179 @@ templates:
 - Automatic validation of IP addresses (IPv4 and IPv6)
 - Hostname format checking
 - Clear error messages for invalid entries
+
+### Node Mode
+
+`mode` controls which jobs the template's agents accept, mirroring Jenkins node usage modes.
+
+| Value | Behaviour |
+|-------|-----------|
+| `NORMAL` (default) | Use this template as much as possible; also serves label-less jobs |
+| `EXCLUSIVE` | Only run jobs whose label expression matches the template's labels |
+
+```yaml
+templates:
+  - name: "gpu"
+    labelString: "gpu"
+    mode: EXCLUSIVE        # reserved exclusively for jobs that ask for "gpu"
+```
+
+### Environment Variables
+
+Inject environment variables into the agent container. `name` and `value` are both
+required; the list is merged across template inheritance.
+
+```yaml
+templates:
+  - name: "maven"
+    environmentVariables:   # alias: envVars
+      - name: "MAVEN_OPTS"
+        value: "-Xmx2g -XX:+UseG1GC"
+      - name: "JAVA_HOME"
+        value: "/opt/java/openjdk"
+```
+
+### Volumes & Mounts
+
+Mount host paths, named volumes, or tmpfs into the agent container.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `type` | `BIND` (host path), `VOLUME` (named volume), or `TMPFS` | Required |
+| `source` | Host path or volume name | Required |
+| `target` | Mount path inside the container | Required |
+| `readOnly` | Mount the source read-only | `false` |
+
+```yaml
+templates:
+  - name: "maven"
+    mounts:                 # alias: hostBinds
+      - type: BIND
+        source: "/var/cache/maven"
+        target: "/root/.m2/repository"
+        readOnly: false
+      - type: VOLUME
+        source: "jenkins-workspace"
+        target: "/workspace"
+```
+
+### Build Cache Directories
+
+`cacheDirs` lists container paths (each must start with `/`) to preserve between builds
+for faster incremental work. Entries are merged across template inheritance.
+
+```yaml
+templates:
+  - name: "maven"
+    cacheDirs:
+      - "/root/.m2/repository"
+      - "/tmp/build-cache"
+```
+
+### Published Ports
+
+Publish container ports on the Swarm ingress network. Format `[hostPort:]containerPort[/protocol]`;
+an empty host port assigns a random one, and the protocol defaults to `tcp`.
+
+```yaml
+templates:
+  - name: "with-ports"
+    portBindings:           # alias: portBinds (newline-separated string form)
+      - "8080:8080"         # host 8080 -> container 8080
+      - ":5900"             # random host port -> container 5900
+      - "443:8443/tcp"      # explicit protocol
+```
+
+### Placement Constraints & Network Aliases
+
+`placementConstraints` pin agent tasks to specific Swarm nodes (Docker
+`--constraint` syntax); `networkAliases` add extra DNS aliases on the Swarm network.
+Both are lists and are merged across template inheritance.
+
+```yaml
+templates:
+  - name: "build"
+    placementConstraints:
+      - "node.role==worker"
+      - "node.labels.type==build"
+    networkAliases:
+      - "build-agent"
+```
+
+### DNS Configuration
+
+`dnsServers` sets custom resolvers, `dnsSearch` adds search domains, and `dnsOptions`
+passes resolver options. All are lists merged across inheritance.
+
+```yaml
+templates:
+  - name: "build"
+    dnsServers:             # alias: dnsServersString / dnsIps (comma-separated)
+      - "10.0.0.2"
+    dnsSearch:
+      - "internal.example.com"
+    dnsOptions:
+      - "ndots:2"
+```
+
+### Kernel Parameters (sysctls)
+
+Set kernel parameters on the container (Docker `--sysctl`). Entries are `key=value`
+and merged across inheritance.
+
+```yaml
+templates:
+  - name: "tuned"
+    sysctls:                # alias: sysctlsString (newline-separated)
+      - "net.core.somaxconn=1024"
+      - "net.ipv4.tcp_syncookies=0"
+```
+
+### Container Stop Behaviour
+
+Control how the container is stopped when the agent is removed.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `stopSignal` | Signal sent to stop the container (e.g. `SIGTERM`, `SIGINT`) | Docker default (`SIGTERM`) |
+| `stopGracePeriod` | Seconds to wait before force-killing the container | 10 |
+
+```yaml
+templates:
+  - name: "graceful"
+    stopSignal: "SIGTERM"
+    stopGracePeriod: 30
+```
+
+### Security Profiles
+
+Apply seccomp and AppArmor profiles to the agent container (Docker Engine 29+).
+
+| Field | Accepted values |
+|-------|-----------------|
+| `seccompProfile` | `default`, `unconfined`, or a path to a custom profile |
+| `apparmorProfile` | `runtime/default`, `unconfined`, or a custom profile name |
+
+```yaml
+templates:
+  - name: "hardened"
+    seccompProfile: "default"
+    apparmorProfile: "runtime/default"
+```
+
+### Generic Resources (GPU)
+
+Request Swarm generic resources such as GPUs. Each entry is `Kind=value`; nodes must
+advertise the matching resource. Entries are merged across inheritance.
+
+```yaml
+templates:
+  - name: "ml"
+    labelString: "gpu"
+    genericResources:       # alias: genericResourcesString ("NVIDIA-GPU=1, FPGA=2")
+      - kind: "NVIDIA-GPU"
+        value: 1
+```
 
 ## Pipeline DSL
 
