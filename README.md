@@ -133,6 +133,53 @@ jenkins:
 | `capDrop` / `capDropString` | Linux capabilities to drop (requires Docker Engine 20.10+ / API 1.41+) |
 | `dnsServersString` | Custom DNS servers |
 
+### Connection, Timeouts & Retry
+
+These template fields control how long the plugin waits for an agent and how it
+retries provisioning. All are optional and fall back to the defaults below.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `connectionTimeoutSeconds` | Max time to wait for the agent to connect before giving up | 300 |
+| `idleTimeoutMinutes` | Idle time before a (non one-shot) agent is terminated | 30 |
+| `provisionRetryCount` | Number of provisioning retries on failure | 3 |
+| `provisionRetryDelayMs` | Initial delay between retries in ms (exponential backoff) | 1000 |
+
+```yaml
+templates:
+  - name: "build"
+    image: "jenkins/inbound-agent:latest"
+    connectionTimeoutSeconds: 300
+    idleTimeoutMinutes: 30
+    provisionRetryCount: 3
+    provisionRetryDelayMs: 1000
+```
+
+### Health Checks
+
+Attach a Docker container health check so the agent container is monitored while
+it runs. A health check is enabled only when `healthCheckCommand` is set — the
+plugin wraps the command as `CMD-SHELL`, so provide just the shell command.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `healthCheckCommand` | Shell command run inside the container to check health. Empty = no health check | — |
+| `healthCheckIntervalSeconds` | Time between checks | 30 |
+| `healthCheckTimeoutSeconds` | Time to wait for a single check before treating it as failed | 10 |
+| `healthCheckRetries` | Consecutive failures before the container is marked unhealthy | 3 |
+
+```yaml
+templates:
+  - name: "with-healthcheck"
+    image: "jenkins/inbound-agent:latest"
+    healthCheckCommand: "curl -f http://localhost:8080/ || exit 1"
+    healthCheckIntervalSeconds: 30
+    healthCheckTimeoutSeconds: 10
+    healthCheckRetries: 3
+```
+
+All of these fields are merged through template inheritance like the rest.
+
 ### Template Inheritance
 
 ```yaml
@@ -177,6 +224,11 @@ Resolution rules:
   mounts, capabilities, etc.) are merged across the whole chain.
 - Cyclic references (`a` → `b` → `a`) are detected and stopped with a warning
   instead of recursing forever.
+- Label matching uses the **resolved** template. A template with no effective
+  `labelString` — neither its own nor an inherited one, like a `base` kept only
+  for inheritance — matches only label-less jobs; it is **not** a catch-all and
+  will not provision agents for jobs that require a specific label. Labels declared
+  on an ancestor are inherited, so a leaf is matched by them too.
 
 ### Ephemeral / One-Shot Agents
 
@@ -234,6 +286,29 @@ templates:
       - secretName: "my-secret"
         fileName: "secret.txt"
         targetPath: "/run/secrets"
+```
+
+### Docker Configs
+
+Docker Swarm **configs** work like secrets but are meant for non-sensitive
+configuration data. Only `configName` is required; the other fields are optional.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `configName` | Name of the existing Docker Swarm config | Required |
+| `targetPath` | Mount path inside the container | `/{configName}` |
+| `fileName` | File name at the target location | Derived from `targetPath` |
+| `fileMode` | File permissions in octal (e.g. `0644`) | — |
+| `uid` / `gid` | Owner UID / GID of the file inside the container | — |
+
+```yaml
+templates:
+  - name: "with-configs"
+    configs:
+      - configName: "app-config"
+        targetPath: "/etc/app/config.ini"
+        fileName: "config.ini"
+        fileMode: "0644"
 ```
 
 ### Registry Authentication (Private Images)
