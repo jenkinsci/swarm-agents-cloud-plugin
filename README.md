@@ -194,7 +194,7 @@ templates:
     inheritFrom: "base"
     labelString: "maven docker"
     environmentVariables:
-      - key: "MAVEN_OPTS"
+      - name: "MAVEN_OPTS"
         value: "-Xmx1g"
 ```
 
@@ -210,7 +210,7 @@ templates:
   - name: "jvm"                  # adds JVM-specific settings
     inheritFrom: "base"
     environmentVariables:
-      - key: "JAVA_OPTS"
+      - name: "JAVA_OPTS"
         value: "-XX:MaxRAMPercentage=75"
 
   - name: "maven"               # leaf: inherits the whole base → jvm chain
@@ -419,6 +419,179 @@ templates:
 - Automatic validation of IP addresses (IPv4 and IPv6)
 - Hostname format checking
 - Clear error messages for invalid entries
+
+### Node Mode
+
+`mode` controls which jobs the template's agents accept, mirroring Jenkins node usage modes.
+
+| Value | Behaviour |
+|-------|-----------|
+| `NORMAL` (default) | Use this template as much as possible; also serves label-less jobs |
+| `EXCLUSIVE` | Only run jobs whose label expression matches the template's labels |
+
+```yaml
+templates:
+  - name: "gpu"
+    labelString: "gpu"
+    mode: EXCLUSIVE        # reserved exclusively for jobs that ask for "gpu"
+```
+
+### Environment Variables
+
+Inject environment variables into the agent container. `name` and `value` are both
+required; the list is merged across template inheritance.
+
+```yaml
+templates:
+  - name: "maven"
+    environmentVariables:   # alias: envVars
+      - name: "MAVEN_OPTS"
+        value: "-Xmx2g -XX:+UseG1GC"
+      - name: "JAVA_HOME"
+        value: "/opt/java/openjdk"
+```
+
+### Volumes & Mounts
+
+Mount host paths, named volumes, or tmpfs into the agent container.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `type` | `BIND` (host path), `VOLUME` (named volume), or `TMPFS` | Required |
+| `source` | Host path or volume name | Required |
+| `target` | Mount path inside the container | Required |
+| `readOnly` | Mount the source read-only | `false` |
+
+```yaml
+templates:
+  - name: "maven"
+    mounts:                 # alias: hostBinds
+      - type: BIND
+        source: "/var/cache/maven"
+        target: "/root/.m2/repository"
+        readOnly: false
+      - type: VOLUME
+        source: "jenkins-workspace"
+        target: "/workspace"
+```
+
+### Build Cache Directories
+
+`cacheDirs` lists container paths (each must start with `/`) to preserve between builds
+for faster incremental work. Entries are merged across template inheritance.
+
+```yaml
+templates:
+  - name: "maven"
+    cacheDirs:
+      - "/root/.m2/repository"
+      - "/tmp/build-cache"
+```
+
+### Published Ports
+
+Publish container ports on the Swarm ingress network. Format `[hostPort:]containerPort[/protocol]`;
+an empty host port assigns a random one, and the protocol defaults to `tcp`.
+
+```yaml
+templates:
+  - name: "with-ports"
+    portBindings:           # alias: portBinds (newline-separated string form)
+      - "8080:8080"         # host 8080 -> container 8080
+      - ":5900"             # random host port -> container 5900
+      - "443:8443/tcp"      # explicit protocol
+```
+
+### Placement Constraints & Network Aliases
+
+`placementConstraints` pin agent tasks to specific Swarm nodes (Docker
+`--constraint` syntax); `networkAliases` add extra DNS aliases on the Swarm network.
+Both are lists and are merged across template inheritance.
+
+```yaml
+templates:
+  - name: "build"
+    placementConstraints:
+      - "node.role==worker"
+      - "node.labels.type==build"
+    networkAliases:
+      - "build-agent"
+```
+
+### DNS Configuration
+
+`dnsServers` sets custom resolvers, `dnsSearch` adds search domains, and `dnsOptions`
+passes resolver options. All are lists merged across inheritance.
+
+```yaml
+templates:
+  - name: "build"
+    dnsServers:             # alias: dnsServersString / dnsIps (comma-separated)
+      - "10.0.0.2"
+    dnsSearch:
+      - "internal.example.com"
+    dnsOptions:
+      - "ndots:2"
+```
+
+### Kernel Parameters (sysctls)
+
+Set kernel parameters on the container (Docker `--sysctl`). Entries are `key=value`
+and merged across inheritance.
+
+```yaml
+templates:
+  - name: "tuned"
+    sysctls:                # alias: sysctlsString (newline-separated)
+      - "net.core.somaxconn=1024"
+      - "net.ipv4.tcp_syncookies=0"
+```
+
+### Container Stop Behaviour
+
+Control how the container is stopped when the agent is removed.
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `stopSignal` | Signal sent to stop the container (e.g. `SIGTERM`, `SIGINT`) | Docker default (`SIGTERM`) |
+| `stopGracePeriod` | Seconds to wait before force-killing the container | 10 |
+
+```yaml
+templates:
+  - name: "graceful"
+    stopSignal: "SIGTERM"
+    stopGracePeriod: 30
+```
+
+### Security Profiles
+
+Apply seccomp and AppArmor profiles to the agent container (Docker Engine 29+).
+
+| Field | Accepted values |
+|-------|-----------------|
+| `seccompProfile` | `default`, `unconfined`, or a path to a custom profile |
+| `apparmorProfile` | `runtime/default`, `unconfined`, or a custom profile name |
+
+```yaml
+templates:
+  - name: "hardened"
+    seccompProfile: "default"
+    apparmorProfile: "runtime/default"
+```
+
+### Generic Resources (GPU)
+
+Request Swarm generic resources such as GPUs. Each entry is `Kind=value`; nodes must
+advertise the matching resource. Entries are merged across inheritance.
+
+```yaml
+templates:
+  - name: "ml"
+    labelString: "gpu"
+    genericResources:       # alias: genericResourcesString ("NVIDIA-GPU=1, FPGA=2")
+      - kind: "NVIDIA-GPU"
+        value: 1
+```
 
 ## Pipeline DSL
 
