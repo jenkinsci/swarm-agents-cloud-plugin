@@ -1217,17 +1217,29 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
 
     /**
      * Checks if this template matches the given label.
+     *
+     * <p>Matching is performed against the <em>resolved</em> template so that labels
+     * inherited through {@code inheritFrom} are honoured, keeping selection consistent
+     * with the configuration that is actually provisioned.</p>
+     *
+     * <p>A template that carries no label (neither its own nor an inherited one) only
+     * matches label-less jobs. It must <strong>not</strong> act as a catch-all for jobs
+     * that require a specific label — otherwise base templates kept solely for
+     * inheritance would be picked and provision agents that cannot run the queued job,
+     * producing a storm of unused nodes.</p>
      */
     public boolean matches(@Nullable Label label) {
+        SwarmAgentTemplate resolved = resolve();
+
         if (label == null) {
-            return mode == Node.Mode.NORMAL;
+            return resolved.getMode() == Node.Mode.NORMAL;
         }
 
-        if (!isNotBlank(labelString)) {
-            return mode == Node.Mode.NORMAL;
+        if (!isNotBlank(resolved.getLabelString())) {
+            return false;
         }
 
-        return label.matches(getLabelSet());
+        return label.matches(resolved.getLabelSet());
     }
 
     /**
