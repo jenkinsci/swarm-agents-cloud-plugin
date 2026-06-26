@@ -84,6 +84,26 @@ class SwarmCloudTest {
     }
 
     @Test
+    void getTemplateSkipsUnlabelledBaseTemplateForLabelledJob() {
+        // A base template kept only for inheritance (no labelString) must not be picked
+        // for a job that requires a specific label, otherwise it provisions agents that
+        // cannot accept the job and Jenkins keeps re-provisioning unused nodes.
+        SwarmAgentTemplate base = new SwarmAgentTemplate("base"); // no labelString
+        SwarmAgentTemplate leaf = new SwarmAgentTemplate("leaf");
+        leaf.setInheritFrom("base");
+        leaf.setLabelString("linux");
+
+        cloud.setTemplates(List.of(base, leaf));
+
+        SwarmAgentTemplate found = cloud.getTemplate(Label.parseExpression("linux"));
+        assertNotNull(found);
+        assertEquals("leaf", found.getName());
+
+        // A label that no template carries must not fall through to the base template.
+        assertNull(cloud.getTemplate(Label.parseExpression("nonexistent")));
+    }
+
+    @Test
     void testEffectiveJenkinsUrl() {
         // With custom URL
         cloud.setJenkinsUrl("http://custom-jenkins:8080/");

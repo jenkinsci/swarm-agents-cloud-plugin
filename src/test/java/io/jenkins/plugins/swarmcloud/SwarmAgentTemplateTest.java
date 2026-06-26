@@ -82,6 +82,38 @@ class SwarmAgentTemplateTest {
     }
 
     @Test
+    void matchesRejectsLabelledJobWhenTemplateHasNoLabel() {
+        // A template with no labelString must NOT act as a catch-all for jobs that
+        // require a specific label. Otherwise base/inheritance templates (which have
+        // no label of their own) get picked and provision agents that cannot run the
+        // queued job, causing an unused-node storm.
+        template.setMode(Node.Mode.NORMAL);
+        // no labelString set
+
+        assertFalse(template.matches(Label.parseExpression("linux")),
+                "template without labels must not match a job requiring a specific label");
+    }
+
+    @Test
+    void matchesUsesInheritedLabels() {
+        // A leaf template that declares no label of its own but inherits one from its
+        // parent must match that inherited label, keeping matching consistent with the
+        // resolved configuration used for provisioning.
+        SwarmAgentTemplate base = new SwarmAgentTemplate("base");
+        base.setLabelString("linux");
+
+        SwarmAgentTemplate leaf = new SwarmAgentTemplate("leaf");
+        leaf.setInheritFrom("base");
+        // leaf has no own labelString
+
+        SwarmCloud cloud = new SwarmCloud("c");
+        cloud.setTemplates(List.of(base, leaf));
+
+        assertTrue(leaf.matches(Label.parseExpression("linux")),
+                "leaf must match a label it inherits from its parent template");
+    }
+
+    @Test
     void testResourceConstraints() {
         template.setCpuLimit("2.0");
         template.setMemoryLimit("4g");
