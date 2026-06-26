@@ -217,7 +217,7 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                     info.setState("unknown");
                 }
 
-                if ("complete".equals(info.getState()) && isOneShotService(cloud, service)) {
+                if (shouldRemoveCompletedOneShot(cloud, service, info.getState())) {
                     LOGGER.log(Level.FINE, "Removing completed one-shot service: {0}", serviceId);
                     try {
                         dockerClient.removeService(serviceId);
@@ -261,6 +261,44 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             status.setErrorMessage(e.getMessage());
         }
         return status;
+    }
+
+    /**
+     * Decides whether a one-shot service whose Docker task reports {@code complete} may be removed.
+     *
+     * <p>Removal is withheld while the agent's Jenkins node is still registered: its retention
+     * strategy owns teardown, and the agent may still be mid-build — e.g. a {@code -noReconnect}
+     * one-shot whose channel briefly dropped while the build waits to reconnect. Deleting the
+     * service then aborts the build with
+     * {@code AgentOfflineException: Unable to create live FilePath ... Connection was broken}.
+     * Once the node is gone, the service is a real orphan and is reaped.</p>
+     *
+     * <p>Package-private for tests.</p>
+     */
+    boolean shouldRemoveCompletedOneShot(SwarmCloud cloud, Service service, String state) {
+        if (!"complete".equals(state) || !isOneShotService(cloud, service)) {
+            return false;
+        }
+        return !isAgentNodeRegistered(service);
+    }
+
+    private boolean isAgentNodeRegistered(Service service) {
+        Jenkins jenkins = Jenkins.getInstanceOrNull();
+        if (jenkins == null) {
+            return false;
+        }
+        String agentName = agentNameForService(service);
+        return agentName != null && jenkins.getNode(agentName) != null;
+    }
+
+    private String agentNameForService(Service service) {
+        var spec = service.getSpec();
+        if (spec == null) {
+            return null;
+        }
+        Map<String, String> labels = spec.getLabels();
+        String agentName = labels != null ? labels.get(ServiceLabels.AGENT_NAME) : null;
+        return agentName != null ? agentName : spec.getName();
     }
 
     // Package-private for tests.

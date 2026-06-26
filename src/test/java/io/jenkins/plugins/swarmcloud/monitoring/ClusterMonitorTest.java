@@ -3,6 +3,7 @@ package io.jenkins.plugins.swarmcloud.monitoring;
 import com.github.dockerjava.api.model.Service;
 import com.github.dockerjava.api.model.ServiceSpec;
 import io.jenkins.plugins.swarmcloud.ServiceLabels;
+import io.jenkins.plugins.swarmcloud.SwarmAgent;
 import io.jenkins.plugins.swarmcloud.SwarmAgentTemplate;
 import io.jenkins.plugins.swarmcloud.SwarmCloud;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,9 +24,11 @@ class ClusterMonitorTest {
 
     private ClusterMonitor monitor;
     private SwarmCloud cloud;
+    private JenkinsRule jenkins;
 
     @BeforeEach
     void setUp(JenkinsRule jenkins) {
+        this.jenkins = jenkins;
         monitor = jenkins.jenkins.getExtensionList(ClusterMonitor.class).get(0);
         assertNotNull(monitor, "ClusterMonitor extension must be registered");
         cloud = new SwarmCloud("test-cloud");
@@ -81,6 +84,73 @@ class ClusterMonitorTest {
         Service service = new Service().withSpec(new ServiceSpec());
 
         assertFalse(monitor.isOneShotService(cloud, service));
+    }
+
+    // --- removal guard: never delete a one-shot service out from under a still-registered node ---
+
+    @Test
+    void doesNotRemoveCompletedOneShotWhileAgentNodeRegistered() throws Exception {
+        // A -noReconnect one-shot agent can report a transiently "complete" Docker task while its
+        // build is still in progress (channel briefly dropped, executor waiting to reconnect). As
+        // long as the Jenkins node still exists, its retention strategy owns teardown; removing the
+        // service here would kill the build with "Connection was broken".
+        SwarmAgentTemplate template = new SwarmAgentTemplate("t");
+        template.setImage("jenkins/inbound-agent:latest");
+        template.setOneShot(true);
+        cloud.setTemplates(List.of(template));
+
+        SwarmAgent agent = new SwarmAgent("busy-agent", template, "test-cloud", "svc-1");
+        jenkins.jenkins.addNode(agent);
+
+        Service service = serviceWithLabels(Map.of(
+                ServiceLabels.ONE_SHOT, "true",
+                ServiceLabels.AGENT_NAME, "busy-agent"
+        ));
+
+        assertFalse(monitor.shouldRemoveCompletedOneShot(cloud, service, "complete"),
+                "must not remove a completed one-shot service while its Jenkins node still exists");
+    }
+
+    @Test
+    void removesCompletedOneShotWhenNodeGone() {
+        // No matching node -> a real orphan whose build is long gone; safe to reap.
+        SwarmAgentTemplate template = new SwarmAgentTemplate("t");
+        template.setOneShot(true);
+        cloud.setTemplates(List.of(template));
+
+        Service service = serviceWithLabels(Map.of(
+                ServiceLabels.ONE_SHOT, "true",
+                ServiceLabels.AGENT_NAME, "ghost-agent"
+        ));
+
+        assertTrue(monitor.shouldRemoveCompletedOneShot(cloud, service, "complete"),
+                "a completed one-shot service whose node is gone must be removed");
+    }
+
+    @Test
+    void doesNotRemoveOneShotServiceThatIsNotComplete() {
+        SwarmAgentTemplate template = new SwarmAgentTemplate("t");
+        template.setOneShot(true);
+        cloud.setTemplates(List.of(template));
+
+        Service service = serviceWithLabels(Map.of(
+                ServiceLabels.ONE_SHOT, "true",
+                ServiceLabels.AGENT_NAME, "ghost-agent"
+        ));
+
+        assertFalse(monitor.shouldRemoveCompletedOneShot(cloud, service, "running"),
+                "only services in the 'complete' state are removal candidates");
+    }
+
+    @Test
+    void doesNotRemoveNonOneShotCompletedService() {
+        Service service = serviceWithLabels(Map.of(
+                ServiceLabels.ONE_SHOT, "false",
+                ServiceLabels.AGENT_NAME, "ghost-agent"
+        ));
+
+        assertFalse(monitor.shouldRemoveCompletedOneShot(cloud, service, "complete"),
+                "non-one-shot services are not reaped by the monitor on completion");
     }
 
     // --- synchronizeTemplateCounters: symmetric ±1 buffer (release 1.0.72) ---
