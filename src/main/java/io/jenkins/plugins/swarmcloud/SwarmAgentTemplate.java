@@ -165,12 +165,11 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
     @DataBoundConstructor
     public SwarmAgentTemplate(@NonNull String name) {
         this.name = Util.fixEmptyAndTrim(name);
-        this.image = "jenkins/inbound-agent:latest";
-        this.remoteFs = "/home/jenkins/agent";
-        this.numExecutors = 1;
-        this.maxInstances = 5;
-        this.mode = Node.Mode.NORMAL;
         this.currentInstances = new AtomicInteger(0);
+        // image/remoteFs/numExecutors/maxInstances/mode are intentionally left unset (null/0) so a
+        // field the user did not configure stays "absent". Their getters apply the defaults, and
+        // resolve() can then inherit an unset field from the parent template instead of masking it
+        // with a constructor default (see resolveInheritsConstructorDefaultedFieldsFromParent).
     }
 
     @NonNull
@@ -1258,7 +1257,7 @@ public class SwarmAgentTemplate extends AbstractDescribableImpl<SwarmAgentTempla
      * Gets the available capacity for new instances.
      */
     public int getAvailableCapacity() {
-        return Math.max(0, maxInstances - getCurrentInstancesCounter().get());
+        return Math.max(0, getMaxInstances() - getCurrentInstancesCounter().get());
     }
 
     /**
