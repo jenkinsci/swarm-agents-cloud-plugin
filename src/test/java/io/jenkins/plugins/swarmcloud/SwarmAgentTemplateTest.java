@@ -508,4 +508,58 @@ class SwarmAgentTemplateTest {
         assertEquals("1g", resolved.getMemoryLimit(),
                 "leaf must inherit memoryLimit from the base through the untouched mid level");
     }
+
+    @Test
+    void resolveInheritsConstructorDefaultedFieldsFromParent() {
+        // image, remoteFs, numExecutors, maxInstances and mode are pre-filled by the constructor.
+        // A child that does not set them must still inherit the parent's values, not fall back to
+        // the constructor defaults. Regression for "remoteFs is not inherited" (PR #20 follow-up).
+        SwarmAgentTemplate base = new SwarmAgentTemplate("base");
+        base.setImage("myorg/custom-agent:1.0");
+        base.setRemoteFs("/data/workspace");
+        base.setNumExecutors(4);
+        base.setMaxInstances(20);
+        base.setMode(Node.Mode.EXCLUSIVE);
+
+        SwarmAgentTemplate leaf = new SwarmAgentTemplate("leaf");
+        leaf.setInheritFrom("base");
+        leaf.setLabelString("leaf"); // leaf sets nothing else
+
+        SwarmCloud cloud = new SwarmCloud("c");
+        cloud.setTemplates(List.of(base, leaf));
+
+        SwarmAgentTemplate resolved = leaf.resolve();
+        assertEquals("/data/workspace", resolved.getRemoteFs(),
+                "remoteFs must be inherited from the parent, not reset to the constructor default");
+        assertEquals("myorg/custom-agent:1.0", resolved.getImage(),
+                "image must be inherited from the parent");
+        assertEquals(4, resolved.getNumExecutors(),
+                "numExecutors must be inherited from the parent");
+        assertEquals(20, resolved.getMaxInstances(),
+                "maxInstances must be inherited from the parent");
+        assertEquals(Node.Mode.EXCLUSIVE, resolved.getMode(),
+                "mode must be inherited from the parent");
+    }
+
+    @Test
+    void resolveLetsChildOverrideConstructorDefaultedFields() {
+        // The inverse guard: an explicit child value must still win over the parent.
+        SwarmAgentTemplate base = new SwarmAgentTemplate("base");
+        base.setRemoteFs("/data/workspace");
+        base.setNumExecutors(4);
+
+        SwarmAgentTemplate leaf = new SwarmAgentTemplate("leaf");
+        leaf.setInheritFrom("base");
+        leaf.setRemoteFs("/leaf/workspace");
+        leaf.setNumExecutors(2);
+
+        SwarmCloud cloud = new SwarmCloud("c");
+        cloud.setTemplates(List.of(base, leaf));
+
+        SwarmAgentTemplate resolved = leaf.resolve();
+        assertEquals("/leaf/workspace", resolved.getRemoteFs(),
+                "child's explicit remoteFs must override the parent");
+        assertEquals(2, resolved.getNumExecutors(),
+                "child's explicit numExecutors must override the parent");
+    }
 }
