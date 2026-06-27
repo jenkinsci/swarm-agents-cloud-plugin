@@ -142,12 +142,13 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
                     agentName = serviceName;
                 }
 
-                boolean isOrphan = !knownAgentNames.contains(agentName);
+                boolean nodeRegistered = knownAgentNames.contains(agentName);
+                boolean isOrphan = !nodeRegistered;
 
                 // Also check for very old services
                 boolean isTooOld = createdTime > 0 && (now - createdTime) > MAX_SERVICE_AGE;
 
-                if (isOrphan || isTooOld) {
+                if (shouldRemoveService(isOrphan, isTooOld, nodeRegistered)) {
                     String reason = isOrphan ? "orphan (no Jenkins node)" : "too old";
                     LOGGER.log(Level.FINE, "Removing {0} service: {1}", new Object[]{reason, serviceName});
 
@@ -172,6 +173,25 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
         }
 
         return cleaned;
+    }
+
+    /**
+     * Decides whether a Swarm service should be removed by this sweep.
+     *
+     * <p>A service is a removal candidate when its agent node is gone ({@code isOrphan}) or it has
+     * outlived {@link #MAX_SERVICE_AGE} ({@code isTooOld}). Either way, removal is withheld while the
+     * node is still registered: its retention strategy owns teardown and the agent may still be
+     * mid-build, so deleting the service here would abort the build with
+     * {@code AgentOfflineException: ... Connection was broken}. The service is reaped once the node
+     * is truly gone.</p>
+     *
+     * <p>Package-private for tests.</p>
+     */
+    boolean shouldRemoveService(boolean isOrphan, boolean isTooOld, boolean nodeRegistered) {
+        if (!(isOrphan || isTooOld)) {
+            return false;
+        }
+        return !nodeRegistered;
     }
 
     /**
