@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import hudson.EnvVars;
 import hudson.Extension;
 import hudson.FilePath;
+import hudson.Launcher;
 import hudson.model.Computer;
 import hudson.model.Node;
 import hudson.model.TaskListener;
@@ -357,9 +358,15 @@ public class SwarmAgentStep extends Step implements Serializable {
         }
 
         /**
-         * Establishes the node context ({@link Computer}, workspace {@link FilePath}, {@link EnvVars})
-         * for the provisioned agent and starts the body with it, so {@code sh} / {@code pwd} and other
-         * workspace-bound steps execute on the Swarm agent rather than the enclosing context.
+         * Establishes the node context ({@link Node}, {@link Computer}, {@link Launcher}, workspace
+         * {@link FilePath}, {@link EnvVars}) for the provisioned agent and starts the body with it, so
+         * {@code sh} / {@code bat} / {@code pwd} and other node-bound steps execute on the Swarm agent
+         * rather than the enclosing context.
+         *
+         * <p>The {@link Launcher} is essential: without it, {@code sh} / {@code bat} inherit the
+         * enclosing node's launcher and spawn their process there (with the Swarm agent's workspace
+         * path), producing a mismatched working directory and "Batch scripts can only be run on
+         * Windows nodes" when the outer node is Linux and the Swarm agent is Windows (issue #29).</p>
          */
         private void runBodyOnNode(Node node, Computer computer, TaskListener listener) throws Exception {
             FilePath root = node.getRootPath();
@@ -368,6 +375,9 @@ public class SwarmAgentStep extends Step implements Serializable {
             }
             FilePath workspace = root.child("workspace");
             workspace.mkdirs();
+
+            TaskListener launcherListener = listener != null ? listener : TaskListener.NULL;
+            Launcher launcher = node.createLauncher(launcherListener);
 
             EnvVars env = computer.getEnvironment();
             env.overrideExpandingAll(computer.buildEnvironment(listener));
@@ -381,7 +391,7 @@ public class SwarmAgentStep extends Step implements Serializable {
 
             getContext().newBodyInvoker()
                     .withCallback(new SwarmAgentCallback(agentName, cloudName))
-                    .withContexts(computer, env, workspace)
+                    .withContexts(node, computer, launcher, env, workspace)
                     .start();
         }
 
@@ -501,10 +511,12 @@ public class SwarmAgentStep extends Step implements Serializable {
 
         @Override
         public Set<? extends Class<?>> getProvidedContext() {
-            // The body runs on the provisioned Swarm agent: it gets that node's computer,
-            // workspace and environment so workspace-bound steps (sh, pwd, ...) target it.
+            // The body runs on the provisioned Swarm agent: it gets that node, its computer,
+            // launcher, workspace and environment so node-bound steps (sh, bat, pwd, ...) target it.
             Set<Class<?>> context = new HashSet<>();
+            context.add(Node.class);
             context.add(Computer.class);
+            context.add(Launcher.class);
             context.add(FilePath.class);
             context.add(EnvVars.class);
             return context;
