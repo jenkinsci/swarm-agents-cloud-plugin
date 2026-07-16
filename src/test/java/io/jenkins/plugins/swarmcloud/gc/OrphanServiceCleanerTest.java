@@ -62,35 +62,54 @@ class OrphanServiceCleanerTest {
         assertEquals(0, cleaned);
     }
 
-    // --- removal guard: never delete a service out from under a still-registered node ---
+    // --- removal guard ---
+    // shouldRemoveService(isOrphan, isTooOld, agentAlive, confirmedOrphan):
+    //   agentAlive      = node registered OR a computer for the agent is online/busy
+    //   confirmedOrphan = the service was already a removal candidate in the previous sweep (debounce)
 
     @Test
-    void removesOrphanWhenNodeGone() {
+    void removesConfirmedOrphanWhenAgentDead() {
         OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
-        assertTrue(cleaner.shouldRemoveService(true, false, false),
-                "an orphan service (no registered node) must be removed");
+        assertTrue(cleaner.shouldRemoveService(true, false, false, true),
+                "an orphan service with no live agent, seen across two sweeps, must be removed");
     }
 
     @Test
-    void keepsTooOldServiceWhileNodeStillRegistered() {
+    void keepsHealthyService() {
         OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
-        // A long-running build can outlive MAX_SERVICE_AGE while its node is still registered and
-        // possibly mid-build. The age check alone must not delete the service out from under it.
-        assertFalse(cleaner.shouldRemoveService(false, true, true),
-                "a too-old service must NOT be removed while its node is still registered");
-    }
-
-    @Test
-    void removesTooOldServiceWhenNodeGone() {
-        OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
-        assertTrue(cleaner.shouldRemoveService(false, true, false),
-                "a too-old service whose node is gone must be removed");
-    }
-
-    @Test
-    void keepsHealthyServiceWithRegisteredNode() {
-        OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
-        assertFalse(cleaner.shouldRemoveService(false, false, true),
+        assertFalse(cleaner.shouldRemoveService(false, false, true, true),
                 "a service that is neither orphan nor too old is never removed");
+    }
+
+    @Test
+    void keepsTooOldServiceWhileAgentAlive() {
+        OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
+        // A long-running build can outlive MAX_SERVICE_AGE while its agent is still alive.
+        assertFalse(cleaner.shouldRemoveService(false, true, true, true),
+                "a too-old service must NOT be removed while its agent is still alive");
+    }
+
+    @Test
+    void removesConfirmedTooOldServiceWhenAgentDead() {
+        OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
+        assertTrue(cleaner.shouldRemoveService(false, true, false, true),
+                "a too-old service whose agent is dead, confirmed across two sweeps, must be removed");
+    }
+
+    @Test
+    void keepsOrphanServiceWhileComputerStillOnline() {
+        OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
+        // The #27 bug: a one-shot agent's node is transiently absent from getNodes() while it is
+        // still connected and building. agentAlive (a live computer) must keep the service.
+        assertFalse(cleaner.shouldRemoveService(true, false, true, true),
+                "an orphan service must be kept while a computer for the agent is still online");
+    }
+
+    @Test
+    void keepsOrphanServiceUntilSeenAcrossTwoSweeps() {
+        OrphanServiceCleaner cleaner = new OrphanServiceCleaner();
+        // Debounce: a single getNodes() snapshot is unreliable, so a first-time orphan is kept.
+        assertFalse(cleaner.shouldRemoveService(true, false, false, false),
+                "an orphan seen for the first time (not confirmed) must not be removed yet");
     }
 }

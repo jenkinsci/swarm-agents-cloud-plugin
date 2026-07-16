@@ -4,6 +4,7 @@ import com.github.dockerjava.api.model.Service;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.model.AsyncPeriodicWork;
+import hudson.model.Computer;
 import hudson.model.Node;
 import hudson.model.TaskListener;
 import hudson.slaves.Cloud;
@@ -47,6 +48,13 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
      */
     private static final long GRACE_PERIOD = TimeUnit.MINUTES.toMillis(10);
 
+    /**
+     * Service IDs that were removal candidates in the previous sweep. A service is only removed once
+     * it has been a candidate across two consecutive sweeps (debounce), so a single unreliable
+     * {@code getNodes()} snapshot that transiently omits a live agent cannot reap its service.
+     */
+    private Set<String> previousRemovalCandidates = new HashSet<>();
+
     public OrphanServiceCleaner() {
         super("Swarm Agent Orphan Service Cleaner");
     }
@@ -66,14 +74,18 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
         LOGGER.log(Level.FINE, "Starting orphan service cleanup");
 
         int totalCleaned = 0;
+        Set<String> currentRemovalCandidates = new HashSet<>();
 
         for (Cloud cloud : jenkins.clouds) {
             if (cloud instanceof SwarmCloud) {
                 SwarmCloud swarmCloud = (SwarmCloud) cloud;
-                int cleaned = cleanOrphanServices(swarmCloud, jenkins, listener);
+                int cleaned = cleanOrphanServices(swarmCloud, jenkins, listener, currentRemovalCandidates);
                 totalCleaned += cleaned;
             }
         }
+
+        // Rotate the debounce window: this sweep's candidates become next sweep's "previous".
+        previousRemovalCandidates = currentRemovalCandidates;
 
         if (totalCleaned > 0) {
             LOGGER.log(Level.INFO, "Orphan service cleanup completed. Cleaned: {0}", totalCleaned);
@@ -85,7 +97,8 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
     /**
      * Cleans orphan services for a specific cloud.
      */
-    private int cleanOrphanServices(SwarmCloud cloud, Jenkins jenkins, TaskListener listener) {
+    private int cleanOrphanServices(SwarmCloud cloud, Jenkins jenkins, TaskListener listener,
+                                    Set<String> currentRemovalCandidates) {
         int cleaned = 0;
 
         try {
@@ -148,12 +161,22 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
                 // Also check for very old services
                 boolean isTooOld = createdTime > 0 && (now - createdTime) > MAX_SERVICE_AGE;
 
-                if (shouldRemoveService(isOrphan, isTooOld, nodeRegistered)) {
+                // A node can be transiently missing from getNodes() while the agent is still
+                // connected and building (issue #27), so treat a live computer as "alive" too.
+                boolean agentAlive = nodeRegistered || hasOnlineComputer(jenkins, agentName);
+
+                String serviceId = service.getId();
+                boolean removalCandidate = (isOrphan || isTooOld) && !agentAlive;
+                if (removalCandidate && serviceId != null) {
+                    currentRemovalCandidates.add(serviceId);
+                }
+                boolean confirmedOrphan = serviceId != null && previousRemovalCandidates.contains(serviceId);
+
+                if (shouldRemoveService(isOrphan, isTooOld, agentAlive, confirmedOrphan)) {
                     String reason = isOrphan ? "orphan (no Jenkins node)" : "too old";
                     LOGGER.log(Level.FINE, "Removing {0} service: {1}", new Object[]{reason, serviceName});
 
                     try {
-                        String serviceId = service.getId();
                         if (serviceId != null) {
                             dockerClient.removeService(serviceId);
                             cleaned++;
@@ -187,11 +210,40 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
      *
      * <p>Package-private for tests.</p>
      */
-    boolean shouldRemoveService(boolean isOrphan, boolean isTooOld, boolean nodeRegistered) {
+    /**
+     * Decides whether a Swarm service should be removed by this sweep.
+     *
+     * <p>A service is a removal candidate when its agent node is gone ({@code isOrphan}) or it has
+     * outlived {@link #MAX_SERVICE_AGE} ({@code isTooOld}). Removal is withheld when the agent is
+     * still alive ({@code agentAlive} — its node is registered, or a computer for it is online/busy)
+     * and until the service has been a candidate across two consecutive sweeps
+     * ({@code confirmedOrphan}). Both guards exist because a single {@code getNodes()} snapshot can
+     * transiently omit a live, mid-build agent (issue #27); removing its service aborts the build
+     * with {@code AgentOfflineException: ... Connection was broken}.</p>
+     *
+     * <p>Package-private for tests.</p>
+     */
+    boolean shouldRemoveService(boolean isOrphan, boolean isTooOld, boolean agentAlive, boolean confirmedOrphan) {
         if (!(isOrphan || isTooOld)) {
             return false;
         }
-        return !nodeRegistered;
+        if (agentAlive) {
+            return false;
+        }
+        return confirmedOrphan;
+    }
+
+    /**
+     * Returns true if a computer for {@code agentName} is currently connected or busy. Unlike
+     * {@code getNode()}, a Computer can still be present and online while its node is transiently
+     * absent from {@code getNodes()} (the window in which #27's premature removal fired).
+     */
+    private boolean hasOnlineComputer(Jenkins jenkins, String agentName) {
+        if (agentName == null) {
+            return false;
+        }
+        Computer computer = jenkins.getComputer(agentName);
+        return computer != null && (computer.isOnline() || computer.countBusy() > 0);
     }
 
     /**
@@ -231,6 +283,6 @@ public class OrphanServiceCleaner extends AsyncPeriodicWork {
             return 0;
         }
 
-        return cleaner.cleanOrphanServices(cloud, jenkins, TaskListener.NULL);
+        return cleaner.cleanOrphanServices(cloud, jenkins, TaskListener.NULL, new HashSet<>());
     }
 }
