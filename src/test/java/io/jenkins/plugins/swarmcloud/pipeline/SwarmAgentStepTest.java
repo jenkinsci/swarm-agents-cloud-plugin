@@ -150,6 +150,22 @@ class SwarmAgentStepTest {
     }
 
     @Test
+    void testDescriptorProvidedContext() {
+        SwarmAgentStep.DescriptorImpl descriptor = new SwarmAgentStep.DescriptorImpl();
+        var context = descriptor.getProvidedContext();
+
+        assertNotNull(context);
+        // The body runs on the provisioned Swarm agent, so the step must provide that node's
+        // launcher and node handle in addition to its computer/workspace/environment — otherwise
+        // shell steps launch on the enclosing node (issue #29).
+        assertTrue(context.contains(hudson.model.Computer.class));
+        assertTrue(context.contains(hudson.FilePath.class));
+        assertTrue(context.contains(hudson.EnvVars.class));
+        assertTrue(context.contains(hudson.Launcher.class));
+        assertTrue(context.contains(hudson.model.Node.class));
+    }
+
+    @Test
     void testStepDescriptorRegistered() {
         // The descriptor should be registered as StepDescriptor extension
         var descriptors = jenkins.jenkins.getExtensionList(StepDescriptor.class);
