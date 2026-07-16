@@ -376,11 +376,11 @@ public class SwarmAgentStep extends Step implements Serializable {
             FilePath workspace = root.child("workspace");
             workspace.mkdirs();
 
-            TaskListener launcherListener = listener != null ? listener : TaskListener.NULL;
-            Launcher launcher = node.createLauncher(launcherListener);
+            TaskListener safeListener = listener != null ? listener : TaskListener.NULL;
+            Launcher launcher = node.createLauncher(safeListener);
 
             EnvVars env = computer.getEnvironment();
-            env.overrideExpandingAll(computer.buildEnvironment(listener));
+            env.overrideExpandingAll(computer.buildEnvironment(safeListener));
             env.put("NODE_NAME", computer.getName());
             env.put("EXECUTOR_NUMBER", "0");
             env.put("WORKSPACE", workspace.getRemote());
