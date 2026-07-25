@@ -1,6 +1,8 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
 
+    <link rel="stylesheet" type="text/css" href="${rootURL}/plugin/swarm-agents-cloud/css/swarm-collapse.css"/>
+
     <f:entry title="Name" field="name">
         <f:textbox/>
     </f:entry>
@@ -54,7 +56,21 @@
     </f:advanced>
 
     <f:entry title="Agent Templates">
-        <f:repeatableProperty field="templates" add="Add Template"/>
+        <f:repeatable field="templates" add="Add Template">
+            <f:repeatableDeleteButton />
+            <details class="swarm-template-group">
+                <summary>
+                    <b>${instance.name ?: '(unnamed template)'}</b>
+                    <j:if test="${instance.image != null and instance.image != ''}">
+                        — ${instance.image}
+                    </j:if>
+                    <j:if test="${instance.labelString != null and instance.labelString != ''}">
+                        [${instance.labelString}]
+                    </j:if>
+                </summary>
+                <st:include page="config.jelly" class="${descriptor.clazz}" />
+            </details>
+        </f:repeatable>
     </f:entry>
 
 </j:jelly>

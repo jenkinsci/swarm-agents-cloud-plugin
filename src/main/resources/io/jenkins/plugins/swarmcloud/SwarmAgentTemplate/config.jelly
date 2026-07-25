@@ -58,41 +58,43 @@
         <f:textbox/>
     </f:entry>
 
-    <f:section title="Environment Variables">
-        <f:entry title="Environment Variables">
-            <f:repeatableProperty field="envVars" add="Add Variable"/>
-        </f:entry>
-    </f:section>
+    <details class="swarm-section-group">
+        <summary>Environment Variables</summary>
+        <f:repeatableProperty field="envVars" add="Add Variable"/>
+    </details>
 
-    <f:section title="Host Binds">
-        <f:entry title="Host Binds">
-            <f:repeatableProperty field="hostBinds" add="Add Bind"/>
-        </f:entry>
-    </f:section>
+    <details class="swarm-section-group">
+        <summary>Host Binds</summary>
+        <f:repeatableProperty field="hostBinds" add="Add Bind"/>
+    </details>
 
-    <f:section title="Docker Configs">
-        <f:entry title="Configs (newline-separated)" field="configsString"
+    <details class="swarm-section-group">
+        <summary>Docker Configs</summary>
+        <f:entry field="configsString"
                  description="Docker Swarm configs to mount. Format: configName:targetPath (one per line). Example: nethasp.ini:/opt/1cv8/current/conf/nethasp.ini">
             <f:textarea/>
         </f:entry>
-    </f:section>
+    </details>
 
-    <f:section title="Cache Directories">
-        <f:entry title="Cache Dirs (newline-separated)" field="cacheDirsString"
+    <details class="swarm-section-group">
+        <summary>Cache Directories</summary>
+        <f:entry field="cacheDirsString"
                  description="Directories to mount as tmpfs for caching (one per line). Example: /cache">
             <f:textarea/>
         </f:entry>
-    </f:section>
+    </details>
 
-    <f:section title="Port Bindings">
-        <f:entry title="Port Binds (newline-separated)" field="portBinds"
+    <details class="swarm-section-group">
+        <summary>Port Bindings</summary>
+        <f:entry field="portBinds"
                  description="Published ports. Format: [hostPort:]containerPort[/protocol]. Examples: 80:8080, :5900">
             <f:textarea/>
         </f:entry>
-    </f:section>
+    </details>
 
     <f:advanced>
-        <f:section title="Resource Constraints">
+        <details class="swarm-section-group">
+            <summary>Resource Constraints</summary>
             <f:entry title="CPU Limit" field="cpuLimit"
                      description="CPU limit (e.g., 2.0 for 2 CPUs)">
                 <f:textbox/>
@@ -117,9 +119,10 @@
                      description="GPU and other resources (comma-separated, e.g., NVIDIA-GPU=1, FPGA=2)">
                 <f:textbox/>
             </f:entry>
-        </f:section>
+        </details>
 
-        <f:section title="Security Profiles">
+        <details class="swarm-section-group">
+            <summary>Security Profiles</summary>
             <f:entry title="Seccomp Profile" field="seccompProfile"
                      description="Seccomp profile: 'default', 'unconfined', or path to custom profile">
                 <f:textbox/>
@@ -129,9 +132,10 @@
                      description="AppArmor profile: 'runtime/default', 'unconfined', or custom profile name">
                 <f:textbox/>
             </f:entry>
-        </f:section>
+        </details>
 
-        <f:section title="Timeouts and Retry">
+        <details class="swarm-section-group">
+            <summary>Timeouts and Retry</summary>
             <f:entry title="Connection Timeout (seconds)" field="connectionTimeoutSeconds"
                      description="Max time to wait for agent to connect">
                 <f:number default="300" min="30" max="3600"/>
@@ -151,9 +155,10 @@
                      description="Initial delay between retries (with exponential backoff)">
                 <f:number default="1000" min="100" max="60000"/>
             </f:entry>
-        </f:section>
+        </details>
 
-        <f:section title="Health Check">
+        <details class="swarm-section-group">
+            <summary>Health Check</summary>
             <f:entry title="Health Check Command" field="healthCheckCommand"
                      description="Command to check container health (e.g., curl -f http://localhost/ || exit 1)">
                 <f:textbox/>
@@ -173,15 +178,15 @@
                      description="Number of consecutive failures before unhealthy">
                 <f:number default="3" min="1" max="10"/>
             </f:entry>
-        </f:section>
+        </details>
 
-        <f:section title="Docker Secrets">
-            <f:entry title="Secrets">
-                <f:repeatableProperty field="secrets" add="Add Secret"/>
-            </f:entry>
-        </f:section>
+        <details class="swarm-section-group">
+            <summary>Docker Secrets</summary>
+            <f:repeatableProperty field="secrets" add="Add Secret"/>
+        </details>
 
-        <f:section title="Placement">
+        <details class="swarm-section-group">
+            <summary>Placement</summary>
             <f:entry title="Placement Constraints (newline-separated)" field="placementConstraintsString"
                      description="One constraint per line (e.g., node.role==worker)">
                 <f:textarea/>
@@ -191,9 +196,10 @@
                      description="Comma-separated network aliases">
                 <f:textbox/>
             </f:entry>
-        </f:section>
+        </details>
 
-        <f:section title="Advanced Container Options">
+        <details class="swarm-section-group">
+            <summary>Advanced Container Options</summary>
             <f:entry title="Privileged Mode" field="privileged"
                      description="Run container in privileged mode (use with caution)">
                 <f:checkbox/>
@@ -243,8 +249,6 @@
                      description="Grace period before force killing container">
                 <f:number default="10" min="0" max="300"/>
             </f:entry>
-        </f:section>
+        </details>
     </f:advanced>
-
-    <f:repeatableDeleteButton />
 </j:jelly>

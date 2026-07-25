@@ -1,0 +1,64 @@
+/* Content of an open <details> is rendered in an anonymous slot whose computed
+   box-sizing defaults to content-box; the global `*{box-sizing:inherit}` then
+   inherits content-box for every descendant instead of the page-wide border-box.
+   That made inputs/selects (width:100% + padding + border) overflow their group
+   by ~24px and push the credentials button over the select. Restore border-box. */
+.swarm-template-group, .swarm-template-group *,
+.swarm-section-group, .swarm-section-group * {
+    box-sizing: border-box;
+}
+
+.repeated-chunk[name="templates"] {
+    border: 1px solid var(--panel-border-color, var(--input-border, #c3ccd1));
+    border-radius: 0.4rem;
+    padding: 0;
+    margin-bottom: 0.75rem;
+    margin-top: 0;
+}
+
+.repeated-chunk[name="templates"] .swarm-template-group > summary {
+    padding: 0.5rem 2.75rem 0.5rem 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid transparent;
+    transition: color 0.15s ease;
+}
+
+.repeated-chunk[name="templates"] .swarm-template-group[open] > summary {
+    border-bottom-color: var(--panel-border-color, var(--input-border, #c3ccd1));
+}
+
+.repeated-chunk[name="templates"] .swarm-template-group > summary:hover {
+    color: var(--link-color, #0b6aa2);
+}
+
+details.swarm-section-group {
+    border: 1px solid var(--panel-border-color, var(--input-border, #c3ccd1));
+    border-radius: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+details.swarm-section-group > summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 0.4rem 0.75rem;
+    user-select: none;
+    background: var(--panel-header-bg-color, transparent);
+    border-radius: 0.4rem;
+    transition: color 0.15s ease;
+}
+
+details.swarm-section-group > summary:hover {
+    color: var(--link-color, #0b6aa2);
+}
+
+details.swarm-section-group[open] > summary {
+    border-bottom: 1px solid var(--panel-border-color, var(--input-border, #c3ccd1));
+    border-radius: 0.4rem 0.4rem 0 0;
+}
+
+details.swarm-section-group[open] > .jenkins-form-item,
+details.swarm-section-group[open] > .repeated-container {
+    padding: 0.5rem 0.75rem;
+}
