@@ -9,7 +9,11 @@ import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -310,5 +314,111 @@ class SwarmAgentTest {
 
         assertEquals(0, afterFirst, "first _terminate should decrement counter once");
         assertEquals(afterFirst, afterSecond, "second _terminate must not decrement again");
+    }
+
+    @Test
+    void testAgentIsJavaSerializable() throws Exception {
+        SwarmAgent agent = new SwarmAgent(
+                "serializable-agent",
+                template,
+                "test-cloud",
+                "service-ser"
+        );
+        jenkins.jenkins.addNode(agent);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+            oos.writeObject(agent);
+        }
+
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()))) {
+            Object restored = ois.readObject();
+            assertInstanceOf(SwarmAgent.class, restored);
+            SwarmAgent restoredAgent = (SwarmAgent) restored;
+            assertEquals("serializable-agent", restoredAgent.getNodeName());
+            assertEquals("test-cloud", restoredAgent.getCloudName());
+            assertEquals("service-ser", restoredAgent.getServiceId());
+        } finally {
+            jenkins.jenkins.removeNode(agent);
+        }
+    }
+
+    @Test
+    void testLauncherIsJavaSerializable() throws IOException {
+        SwarmComputerLauncher launcher = new SwarmComputerLauncher(
+                "test-cloud",
+                "jenkins/inbound-agent:latest",
+                true,
+                null,
+                "/home/jenkins/agent",
+                600
+        );
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+            oos.writeObject(launcher);
+        }
+
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()))) {
+            SwarmComputerLauncher restored = (SwarmComputerLauncher) ois.readObject();
+            assertEquals("test-cloud", restored.getCloudName());
+            assertEquals("jenkins/inbound-agent:latest", restored.getImage());
+            assertTrue(restored.isUseWebSocket());
+            assertEquals("/home/jenkins/agent", restored.getWorkDir());
+            assertEquals(600, restored.getConnectionTimeoutSeconds());
+        } catch (ClassNotFoundException e) {
+            fail("Deserialization failed: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testLauncherTcpModeIsJavaSerializable() throws IOException {
+        SwarmComputerLauncher launcher = new SwarmComputerLauncher(
+                "tcp-cloud",
+                "custom/agent:v2",
+                false,
+                "jenkins:50000",
+                "/work",
+                120
+        );
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+            oos.writeObject(launcher);
+        }
+
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()))) {
+            SwarmComputerLauncher restored = (SwarmComputerLauncher) ois.readObject();
+            assertEquals("tcp-cloud", restored.getCloudName());
+            assertEquals("custom/agent:v2", restored.getImage());
+            assertFalse(restored.isUseWebSocket());
+            assertEquals("/work", restored.getWorkDir());
+            assertEquals(120, restored.getConnectionTimeoutSeconds());
+        } catch (ClassNotFoundException e) {
+            fail("Deserialization failed: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void testProxyFailsWhenNodeRemoved() throws Exception {
+        SwarmAgent agent = new SwarmAgent(
+                "proxy-fail-agent",
+                template,
+                "test-cloud",
+                "service-pf"
+        );
+        jenkins.jenkins.addNode(agent);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+            oos.writeObject(agent);
+        }
+
+        jenkins.jenkins.removeNode(agent);
+
+        try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bos.toByteArray()))) {
+            assertThrows(IllegalStateException.class, ois::readObject,
+                    "Deserializing a proxy for a removed node must throw IllegalStateException");
+        }
     }
 }

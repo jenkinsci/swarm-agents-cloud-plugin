@@ -17,6 +17,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -91,8 +92,38 @@ public class SwarmAgent extends AbstractCloudSlave {
         if (terminated == null) {
             terminated = new AtomicBoolean(false);
         }
-        // Call parent implementation to properly restore agent state
         return super.readResolve();
+    }
+
+    /**
+     * Replaces this agent with a lightweight serializable proxy during Java serialization.
+     * The CPS engine (River marshaller) serializes context variables when persisting pipeline
+     * state; {@code Slave} contains non-serializable components ({@code DescribableList},
+     * launcher, retention strategy). The proxy holds only the node name and re-resolves the
+     * live agent on deserialization.
+     */
+    private Object writeReplace() {
+        return new SwarmAgentProxy(name);
+    }
+
+    private static class SwarmAgentProxy implements Serializable {
+        private static final long serialVersionUID = 1L;
+        private final String nodeName;
+
+        SwarmAgentProxy(String nodeName) {
+            this.nodeName = nodeName;
+        }
+
+        private Object readResolve() {
+            Jenkins jenkins = Jenkins.getInstanceOrNull();
+            if (jenkins != null) {
+                Node node = jenkins.getNode(nodeName);
+                if (node != null) {
+                    return node;
+                }
+            }
+            throw new IllegalStateException("SwarmAgent no longer registered: " + nodeName);
+        }
     }
 
     @NonNull

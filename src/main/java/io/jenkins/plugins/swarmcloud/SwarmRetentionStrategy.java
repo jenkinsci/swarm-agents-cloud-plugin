@@ -15,6 +15,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
  */
 public class SwarmRetentionStrategy extends CloudRetentionStrategy {
 
+    private static final long serialVersionUID = 1L;
     private static final int DEFAULT_IDLE_MINUTES = 10;
 
     private final int idleMinutes;
