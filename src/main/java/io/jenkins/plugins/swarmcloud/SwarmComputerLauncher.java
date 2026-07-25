@@ -16,6 +16,7 @@ import static io.jenkins.plugins.swarmcloud.security.InputValidator.isNotBlank;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -29,7 +30,9 @@ import java.util.logging.Logger;
  * Launcher for Docker Swarm agents.
  * Extends JNLPLauncher to allow inbound agent connections via WebSocket or JNLP.
  */
-public class SwarmComputerLauncher extends JNLPLauncher {
+public class SwarmComputerLauncher extends JNLPLauncher implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private static final Logger LOGGER = Logger.getLogger(SwarmComputerLauncher.class.getName());
     private static final int DEFAULT_TIMEOUT_SECONDS = 300; // 5 minutes

@@ -19,6 +19,9 @@ work/
 *.iml
 .vscode/
 
+# Frontend tooling (headless-browser measurement scripts)
+node_modules/
+
 # AI assistant
 .claude/
 superpowers/
