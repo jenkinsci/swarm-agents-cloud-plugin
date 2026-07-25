@@ -35,6 +35,13 @@
         <tag>HEAD</tag>
     </scm>
 
+    <developers>
+        <developer>
+            <id>aronmav</id>
+            <name>AronMav</name>
+        </developer>
+    </developers>
+
     <properties>
         <changelist>999999-SNAPSHOT</changelist>
         <jenkins.baseline>2.528</jenkins.baseline>
