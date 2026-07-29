@@ -358,15 +358,19 @@ public class SwarmAgentStep extends Step implements Serializable {
         }
 
         /**
-         * Establishes the node context ({@link Node}, {@link Computer}, {@link Launcher}, workspace
-         * {@link FilePath}, {@link EnvVars}) for the provisioned agent and starts the body with it, so
-         * {@code sh} / {@code bat} / {@code pwd} and other node-bound steps execute on the Swarm agent
-         * rather than the enclosing context.
+         * Establishes the node context ({@link Node}, {@link Computer}, workspace {@link FilePath},
+         * {@link EnvVars}) for the provisioned agent and starts the body with it, so {@code sh} /
+         * {@code bat} / {@code pwd} and other node-bound steps execute on the Swarm agent rather than
+         * the enclosing context.
          *
-         * <p>The {@link Launcher} is essential: without it, {@code sh} / {@code bat} inherit the
-         * enclosing node's launcher and spawn their process there (with the Swarm agent's workspace
-         * path), producing a mismatched working directory and "Batch scripts can only be run on
-         * Windows nodes" when the outer node is Linux and the Swarm agent is Windows (issue #29).</p>
+         * <p>The body's {@link Launcher} is deliberately <em>not</em> pushed into the context. It is
+         * derived on demand from the {@link Node} above by {@code DefaultStepContext.makeLauncher()},
+         * exactly as the built-in {@code node} step does, which keeps {@code sh} / {@code bat}
+         * targeting the Swarm agent (issue #29) without storing a live launcher. A live
+         * {@code hudson.Launcher$RemoteLauncher} is neither {@code Serializable} nor covered by a
+         * {@code Pickle}, so keeping one in the context made the CPS engine fail with
+         * {@code NotSerializableException} as soon as it persisted the program — which it does after
+         * every suspending step under the default MAX_SURVIVABILITY durability (issue #37).</p>
          */
         private void runBodyOnNode(Node node, Computer computer, TaskListener listener) throws Exception {
             FilePath root = node.getRootPath();
@@ -377,7 +381,6 @@ public class SwarmAgentStep extends Step implements Serializable {
             workspace.mkdirs();
 
             TaskListener safeListener = listener != null ? listener : TaskListener.NULL;
-            Launcher launcher = node.createLauncher(safeListener);
 
             EnvVars env = computer.getEnvironment();
             env.overrideExpandingAll(computer.buildEnvironment(safeListener));
@@ -391,7 +394,7 @@ public class SwarmAgentStep extends Step implements Serializable {
 
             getContext().newBodyInvoker()
                     .withCallback(new SwarmAgentCallback(agentName, cloudName))
-                    .withContexts(node, computer, launcher, env, workspace)
+                    .withContexts(node, computer, env, workspace)
                     .start();
         }
 
@@ -512,7 +515,9 @@ public class SwarmAgentStep extends Step implements Serializable {
         @Override
         public Set<? extends Class<?>> getProvidedContext() {
             // The body runs on the provisioned Swarm agent: it gets that node, its computer,
-            // launcher, workspace and environment so node-bound steps (sh, bat, pwd, ...) target it.
+            // workspace and environment so node-bound steps (sh, bat, pwd, ...) target it. Launcher
+            // is listed because the body does see one, even though it is inferred from the Node by
+            // DefaultStepContext rather than pushed (the built-in node step declares it the same way).
             Set<Class<?>> context = new HashSet<>();
             context.add(Node.class);
             context.add(Computer.class);
