@@ -8,8 +8,12 @@
     box-sizing: border-box;
 }
 
+/* Borders and surfaces use theme-derived tokens only. --panel-border-color and
+   --panel-header-bg-color both resolve to --light-grey (#f4f4f8), a fixed near-white
+   that is almost invisible as a border in the light theme and a bright band in a dark
+   one; --jenkins-border-color and --item-background follow the active theme instead. */
 .repeated-chunk[name="templates"] {
-    border: 1px solid var(--panel-border-color, var(--input-border, #c3ccd1));
+    border: var(--jenkins-border);
     border-radius: 0.4rem;
     padding: 0;
     margin-bottom: 0.75rem;
@@ -26,15 +30,15 @@
 }
 
 .repeated-chunk[name="templates"] .swarm-template-group[open] > summary {
-    border-bottom-color: var(--panel-border-color, var(--input-border, #c3ccd1));
+    border-bottom-color: var(--jenkins-border-color);
 }
 
 .repeated-chunk[name="templates"] .swarm-template-group > summary:hover {
-    color: var(--link-color, #0b6aa2);
+    color: var(--link-color);
 }
 
 details.swarm-section-group {
-    border: 1px solid var(--panel-border-color, var(--input-border, #c3ccd1));
+    border: var(--jenkins-border);
     border-radius: 0.4rem;
     margin: 0.5rem 0;
 }
@@ -44,21 +48,35 @@ details.swarm-section-group > summary {
     font-weight: 600;
     padding: 0.4rem 0.75rem;
     user-select: none;
-    background: var(--panel-header-bg-color, transparent);
+    background: var(--item-background);
     border-radius: 0.4rem;
-    transition: color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease;
 }
 
 details.swarm-section-group > summary:hover {
-    color: var(--link-color, #0b6aa2);
+    background: var(--item-background--hover);
+    color: var(--link-color);
 }
 
 details.swarm-section-group[open] > summary {
-    border-bottom: 1px solid var(--panel-border-color, var(--input-border, #c3ccd1));
+    border-bottom: 1px solid var(--jenkins-border-color);
     border-radius: 0.4rem 0.4rem 0 0;
 }
 
 details.swarm-section-group[open] > .jenkins-form-item,
 details.swarm-section-group[open] > .repeated-container {
     padding: 0.5rem 0.75rem;
+}
+
+/* Marks a group that holds something, so closed groups can be told apart at a glance.
+   Styled like the core "Edited" note next to an Advanced button: quiet, secondary. */
+.swarm-section-badge {
+    margin-left: 0.5rem;
+    font-size: var(--font-size-xs, 0.75rem);
+    font-weight: 400;
+    color: var(--text-color-secondary);
+}
+
+.swarm-section-badge[hidden] {
+    display: none;
 }
