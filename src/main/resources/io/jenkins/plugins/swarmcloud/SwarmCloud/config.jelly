@@ -2,6 +2,7 @@
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:f="/lib/form" xmlns:c="/lib/credentials">
 
     <link rel="stylesheet" type="text/css" href="${rootURL}/plugin/swarm-agents-cloud/css/swarm-collapse.css"/>
+    <st:adjunct includes="io.jenkins.plugins.swarmcloud.SwarmCloud.swarm-section-badges"/>
 
     <f:entry title="Name" field="name">
         <f:textbox/>
