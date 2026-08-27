@@ -39,6 +39,18 @@ public class ClusterMonitor extends AsyncPeriodicWork {
     private static final Map<String, ClusterStatus> statusCache = new ConcurrentHashMap<>();
     private static volatile long lastUpdate = 0;
 
+    /**
+     * Per-template memory of the last observed drift of exactly one agent (counter minus
+     * actual Swarm service count), keyed by "cloudName/templateName". Used by
+     * {@link #synchronizeTemplateCounters} to distinguish a transient in-flight
+     * reservation (resolves within one monitor cycle) from a genuinely leaked
+     * increment/decrement (persists), so that a single missed decrement can no longer
+     * permanently block the last agent slot until the next restart (#40).
+     * Instance-scoped: the monitor is a singleton per Jenkins, so the state does not
+     * survive restarts and does not leak across tests.
+     */
+    private final transient Map<String, Integer> pendingOneAgentDrift = new ConcurrentHashMap<>();
+
     public ClusterMonitor() {
         super("Swarm Cluster Monitor");
     }
@@ -388,29 +400,48 @@ public class ClusterMonitor extends AsyncPeriodicWork {
             int actualCount = templateServiceCount.getOrDefault(templateName, 0);
 
             // Use atomic update to avoid race conditions with concurrent provisioning
-            // Only sync if the counter is higher than actual (services removed)
-            // or significantly lower (missed increments)
             var counter = template.getCurrentInstancesCounter();
             int currentCount = counter.get();
 
-            if (currentCount != actualCount) {
-                // Allow a ±1 buffer to avoid racing with in-flight provisioning: between
-                // SwarmCloud.provision()'s pre-increment and ProvisioningCallback creating the
-                // Docker service there is a window where the counter is +1 but the service has
-                // not yet been registered with the Swarm API. Without this buffer, the monitor
-                // would force the counter back to 0 and that increment would be lost forever
-                // (since the success path of ProvisioningCallback does not re-increment).
-                // The symmetric tolerance also covers a missed-decrement case while we wait one
-                // more cycle for confirmation.
-                if (Math.abs(currentCount - actualCount) > 1) {
-                    if (counter.compareAndSet(currentCount, actualCount)) {
-                        LOGGER.log(Level.INFO, "Synchronized template ''{0}'' counter: {1} -> {2}",
-                                new Object[]{templateName, currentCount, actualCount});
-                    }
-                    // If compareAndSet fails, another thread modified the counter - skip this cycle
+            if (currentCount == actualCount) {
+                // Drift resolved on its own (in-flight reservation completed): clear the
+                // confirmation memory so an unrelated later drift starts a fresh window.
+                pendingOneAgentDrift.remove(cloud.name + "/" + templateName);
+                continue;
+            }
+
+            int drift = currentCount - actualCount;
+            if (Math.abs(drift) > 1) {
+                syncCounter(cloud, template, counter, currentCount, actualCount);
+            } else {
+                // Drift of exactly 1: this is either a transient in-flight reservation
+                // (provision() pre-increments before the service exists in Swarm) or a
+                // genuinely leaked increment/decrement. Tolerate it for one monitor cycle
+                // (30s); if the same drift is still observed on the next cycle, the
+                // reservation window has long passed and the counter is stale - sync it.
+                // Without this, a single missed decrement permanently blocked the last
+                // agent slot until the next restart (#40).
+                String key = cloud.name + "/" + templateName;
+                Integer previous = pendingOneAgentDrift.put(key, drift);
+                if (previous != null && previous.equals(drift)) {
+                    syncCounter(cloud, template, counter, currentCount, actualCount);
                 }
             }
         }
+    }
+
+    /**
+     * Forces the template counter to the actual Swarm service count via atomic
+     * compare-and-set and logs the correction.
+     */
+    private void syncCounter(SwarmCloud cloud, SwarmAgentTemplate template,
+            java.util.concurrent.atomic.AtomicInteger counter, int currentCount, int actualCount) {
+        if (counter.compareAndSet(currentCount, actualCount)) {
+            LOGGER.log(Level.INFO, "Synchronized template ''{0}'' counter: {1} -> {2} (cloud: {3})",
+                    new Object[]{template.getName(), currentCount, actualCount, cloud.name});
+            pendingOneAgentDrift.remove(cloud.name + "/" + template.getName());
+        }
+        // If compareAndSet fails, another thread modified the counter - skip this cycle
     }
 
     /**
