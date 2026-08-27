@@ -215,6 +215,108 @@ class ClusterMonitorTest {
                 "counter must be synced up when 2+ services are unaccounted for");
     }
 
+    // --- synchronizeTemplateCounters: two-cycle confirmation for drift of 1 (#40) ---
+
+    @Test
+    void testSyncCountersConfirmsMissedDecrementAfterTwoCycles() {
+        // Issue #40: a single missed decrement permanently blocks the last agent slot
+        // because the ±1 tolerance never corrects it. A drift of exactly 1 must be
+        // corrected once the same drift is seen on two consecutive monitor cycles.
+        SwarmAgentTemplate template = new SwarmAgentTemplate("t");
+        template.setImage("jenkins/inbound-agent:latest");
+        template.getCurrentInstancesCounter().set(1); // stale: leaked reservation (service died)
+        cloud.setTemplates(List.of(template));
+
+        // Cycle 1: counter=1 but no service -> first sighting of drift, tolerated
+        // (this is indistinguishable from an in-flight reservation)
+        monitor.synchronizeTemplateCounters(cloud, List.of());
+        assertEquals(1, template.getCurrentInstances(),
+                "drift of 1 must be tolerated on the first cycle (in-flight window)");
+
+        // Cycle 2: same drift persists -> the reservation window has passed,
+        // the counter is stale - sync it down
+        monitor.synchronizeTemplateCounters(cloud, List.of());
+        assertEquals(0, template.getCurrentInstances(),
+                "drift of 1 persisting across two cycles must be synced down (#40)");
+    }
+
+    @Test
+    void testSyncCountersSyncsUpMissedIncrementAfterTwoCycles() {
+        // Symmetric case: one service exists but the counter was never incremented
+        // (missed increment). Tolerated on the first cycle, corrected on the second.
+        SwarmAgentTemplate template = new SwarmAgentTemplate("t");
+        template.setImage("jenkins/inbound-agent:latest");
+        cloud.setTemplates(List.of(template));
+
+        Service service = serviceWithLabels(Map.of(ServiceLabels.TEMPLATE, "t"));
+
+        monitor.synchronizeTemplateCounters(cloud, List.of(service));
+        assertEquals(0, template.getCurrentInstances(),
+                "drift of 1 must be tolerated on the first cycle");
+
+        monitor.synchronizeTemplateCounters(cloud, List.of(service));
+        assertEquals(1, template.getCurrentInstances(),
+                "drift of 1 persisting across two cycles must be synced up");
+    }
+
+    @Test
+    void testSyncCountersResetsConfirmationWhenDriftClears() {
+        // The two-cycle confirmation must reset if the drift disappears: an in-flight
+        // reservation that completes normally must not leave confirmation state behind,
+        // otherwise an unrelated later drift would be corrected on its first sighting.
+        SwarmAgentTemplate template = new SwarmAgentTemplate("t");
+        template.setImage("jenkins/inbound-agent:latest");
+        cloud.setTemplates(List.of(template));
+
+        // Cycle 1: in-flight increment (counter=1, no service) -> observed, tolerated
+        template.incrementInstances();
+        monitor.synchronizeTemplateCounters(cloud, List.of());
+        assertEquals(1, template.getCurrentInstances(), "in-flight must be tolerated");
+
+        // In-flight completes: service appears, counter matches -> drift cleared
+        Service service = serviceWithLabels(Map.of(ServiceLabels.TEMPLATE, "t"));
+        monitor.synchronizeTemplateCounters(cloud, List.of(service));
+
+        // A fresh drift (missed decrement this time) must start a NEW confirmation window
+        template.decrementInstances(); // counter=0 but 1 service exists
+        monitor.synchronizeTemplateCounters(cloud, List.of(service));
+        assertEquals(0, template.getCurrentInstances(),
+                "fresh drift must be tolerated on its first sighting");
+
+        monitor.synchronizeTemplateCounters(cloud, List.of(service));
+        assertEquals(1, template.getCurrentInstances(),
+                "fresh drift must only be corrected after two consecutive cycles");
+    }
+
+    @Test
+    void testSyncCountersTracksConfirmationPerTemplate() {
+        // Confirmation state must be per template: template 'a' drifting since cycle 1
+        // must be corrected on cycle 2, while template 'b' drifting only since cycle 2
+        // must still be tolerated on cycle 2.
+        SwarmAgentTemplate a = new SwarmAgentTemplate("a");
+        SwarmAgentTemplate b = new SwarmAgentTemplate("b");
+        a.setImage("jenkins/inbound-agent:latest");
+        b.setImage("jenkins/inbound-agent:latest");
+        a.getCurrentInstancesCounter().set(1); // a: stale counter, no service ever
+        b.getCurrentInstancesCounter().set(1); // b: matches its 1 service initially
+        cloud.setTemplates(List.of(a, b));
+
+        Service serviceB = serviceWithLabels(Map.of(ServiceLabels.TEMPLATE, "b"));
+
+        // Cycle 1: a drifts (1st sighting), b matches
+        monitor.synchronizeTemplateCounters(cloud, List.of(serviceB));
+        assertEquals(1, a.getCurrentInstances(), "a: first sighting tolerated");
+        assertEquals(1, b.getCurrentInstances(), "b: no drift");
+
+        // Cycle 2: b's service disappeared -> b drifts for the first time;
+        // a drifts for the second time and must be corrected NOW
+        monitor.synchronizeTemplateCounters(cloud, List.of());
+        assertEquals(0, a.getCurrentInstances(),
+                "a: confirmed drift must be corrected on the second cycle");
+        assertEquals(1, b.getCurrentInstances(),
+                "b: first sighting must be tolerated, not borrowed from a's confirmation");
+    }
+
     private static Service serviceWithLabels(Map<String, String> labels) {
         return new Service().withSpec(new ServiceSpec().withLabels(labels));
     }
