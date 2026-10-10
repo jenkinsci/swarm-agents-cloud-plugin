@@ -130,6 +130,7 @@
                                                     <tr>
                                                         <th>Name</th>
                                                         <th>Template</th>
+                                                        <th>Hostname</th>
                                                         <th>State</th>
                                                         <th>Uptime</th>
                                                         <th>Actions</th>
@@ -140,6 +141,7 @@
                                                         <tr>
                                                             <td>${svc.name}</td>
                                                             <td>${svc.templateName}</td>
+                                                            <td>${svc.hostname != null ? svc.hostname : '-'}</td>
                                                             <td>
                                                                 <span class="swarm-status swarm-status--${svc.stateClass}">${svc.state}</span>
                                                                 <j:if test="${svc.error != null}">

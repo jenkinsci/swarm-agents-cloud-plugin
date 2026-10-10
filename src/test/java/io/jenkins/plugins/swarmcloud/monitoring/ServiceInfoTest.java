@@ -23,6 +23,7 @@ class ServiceInfoTest {
         serviceInfo.setName("swarm-maven-agent-12345");
         serviceInfo.setState("running");
         serviceInfo.setTemplateName("maven");
+        serviceInfo.setHostname("worker-01");
         serviceInfo.setCreatedTime(System.currentTimeMillis() - 3600_000); // 1 hour ago
         serviceInfo.setError(null);
 
@@ -30,6 +31,7 @@ class ServiceInfoTest {
         assertEquals("swarm-maven-agent-12345", serviceInfo.getName());
         assertEquals("running", serviceInfo.getState());
         assertEquals("maven", serviceInfo.getTemplateName());
+        assertEquals("worker-01", serviceInfo.getHostname());
         assertTrue(serviceInfo.getCreatedTime() > 0);
         assertNull(serviceInfo.getError());
     }

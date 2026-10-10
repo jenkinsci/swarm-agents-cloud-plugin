@@ -21,6 +21,7 @@ import jenkins.model.Jenkins;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,6 +96,7 @@ public class ClusterMonitor extends AsyncPeriodicWork {
 
             int readyNodes = 0, managerNodes = 0;
             long totalMemory = 0, totalCpu = 0;
+            Map<String, String> hostNames = new HashMap<>();
 
             for (SwarmNode node : nodes) {
                 SwarmNodeStatus nodeStatus = node.getStatus();
@@ -127,6 +129,9 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 // Set role based on manager status
                 nodeInfo.setRole(node.getManagerStatus() != null ? "manager" : "worker");
                 status.addNode(nodeInfo);
+                if (node.getId() != null) {
+                    hostNames.put(node.getId(), nodeInfo.getHostname());
+                }
             }
 
             status.setReadyNodes(readyNodes);
@@ -172,12 +177,19 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                 boolean hasRunning = false, hasPending = false, hasFailed = false;
                 boolean hasComplete = false, hasShutdown = false;
                 String lastError = null;
+                String runningNodeId = null, lastNodeId = null;
 
                 for (Task task : tasks) {
+                    if (task.getNodeId() != null) {
+                        lastNodeId = task.getNodeId();
+                    }
                     if (task.getStatus() != null) {
                         TaskState state = task.getStatus().getState();
                         if (state == TaskState.RUNNING) {
                             hasRunning = true;
+                            if (task.getNodeId() != null) {
+                                runningNodeId = task.getNodeId();
+                            }
                             // Collect resource reservations from running tasks
                             reservedMemory += getTaskReservedMemory(task);
                             reservedCpuNano += getTaskReservedCpu(task);
@@ -197,6 +209,11 @@ public class ClusterMonitor extends AsyncPeriodicWork {
                             }
                         }
                     }
+                }
+
+                String nodeId = runningNodeId != null ? runningNodeId : lastNodeId;
+                if (nodeId != null) {
+                    info.setHostname(hostNames.getOrDefault(nodeId, nodeId));
                 }
 
                 // Set service state based on priority and count by state
