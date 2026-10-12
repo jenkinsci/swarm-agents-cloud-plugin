@@ -17,7 +17,7 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 
 | Feature | **swarm-agents-cloud** | docker-swarm-plugin |
 |---------|------------------------|---------------------|
-| **Last Update** | 2025 (active) | 2021 (abandoned) |
+| **Last Update** | 2026 (active) | 2021 (abandoned) |
 | **Open Issues** | — | 54+ |
 | **Java Version** | 21+ | 8+ |
 | **Jenkins Version** | 2.528.3+ | Outdated |
@@ -32,7 +32,7 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 | **Pipeline DSL** | ✅ `swarmAgent {}` | ❌ |
 | **Audit Logging** | ✅ | ❌ |
 | **Orphan Cleanup** | ✅ Automatic | ❌ |
-| **Dark Theme Dashboard** | ✅ | ❌ |
+| **Theme-aware UI (light/dark)** | ✅ | ❌ |
 | **TLS Support** | ✅ Working | ⚠️ Broken |
 | **XSS Vulnerabilities** | ✅ Fixed | ⚠️ SECURITY-2811 |
 
@@ -55,6 +55,7 @@ This plugin is a **modern replacement** for the abandoned [docker-swarm-plugin](
 - **Secrets & Configs** — Docker Swarm secrets and configs integration
 - **Rate Limiting** — Built-in provisioning rate limits (thundering herd protection)
 - **Dashboard** — Real-time cluster monitoring at `/swarm-dashboard`
+- **Collapsible Template Groups** — The cloud configuration UI keeps large template lists manageable
 - **REST API** — Programmatic management at `/swarm-api`
 - **Template Inheritance** — Inherit settings from parent templates (`inheritFrom`)
 - **Prometheus Metrics** — `/swarm-api/prometheus` endpoint
@@ -734,8 +735,8 @@ Access at `http://jenkins/swarm-dashboard/`
 
 - Cluster health overview
 - Node status and resources
-- Active services list
-- Dark theme support
+- Active services list, with the Swarm node each agent runs on
+- Light and dark theme support
 
 ## Prometheus Metrics
 

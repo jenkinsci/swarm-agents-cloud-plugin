@@ -17,7 +17,7 @@
 
 | Функция | **swarm-agents-cloud** | docker-swarm-plugin |
 |---------|------------------------|---------------------|
-| **Последнее обновление** | 2025 (активная разработка) | 2021 (заброшен) |
+| **Последнее обновление** | 2026 (активная разработка) | 2021 (заброшен) |
 | **Открытых Issues** | — | 54+ |
 | **Версия Java** | 21+ | 8+ |
 | **Версия Jenkins** | 2.528.3+ | Устаревшая |
@@ -32,7 +32,7 @@
 | **Pipeline DSL** | ✅ `swarmAgent {}` | ❌ |
 | **Аудит логирование** | ✅ | ❌ |
 | **Очистка orphan-сервисов** | ✅ Автоматическая | ❌ |
-| **Тёмная тема Dashboard** | ✅ | ❌ |
+| **UI: светлая/тёмная тема** | ✅ | ❌ |
 | **TLS поддержка** | ✅ Работает | ⚠️ Сломана |
 | **XSS уязвимости** | ✅ Исправлены | ⚠️ SECURITY-2811 |
 
@@ -55,6 +55,7 @@
 - **Secrets & Configs** — интеграция с Docker Swarm secrets и configs
 - **Rate Limiting** — встроенное ограничение скорости создания (защита от thundering herd)
 - **Dashboard** — мониторинг кластера в реальном времени на `/swarm-dashboard`
+- **Сворачиваемые группы шаблонов** — UI конфигурации облака остаётся удобным даже при больших списках шаблонов
 - **REST API** — программное управление через `/swarm-api`
 - **Наследование шаблонов** — наследование настроек от родительских шаблонов (`inheritFrom`)
 - **Prometheus метрики** — эндпоинт `/swarm-api/prometheus`
@@ -133,6 +134,53 @@ jenkins:
 | `capDrop` / `capDropString` | Linux capabilities для удаления (требуется Docker Engine 20.10+ / API 1.41+) |
 | `dnsServersString` | Кастомные DNS серверы |
 
+### Подключение, таймауты и retry
+
+Эти поля шаблона управляют тем, как долго плагин ждёт подключения агента и как
+повторяет provisioning. Все опциональны и при отсутствии берутся дефолты ниже.
+
+| Поле | Описание | По умолчанию |
+|------|----------|--------------|
+| `connectionTimeoutSeconds` | Максимальное время ожидания подключения агента перед отказом | 300 |
+| `idleTimeoutMinutes` | Время простоя до терминирования агента (кроме one-shot) | 30 |
+| `provisionRetryCount` | Количество повторов provisioning при ошибках | 3 |
+| `provisionRetryDelayMs` | Начальная задержка между повторами в мс (exponential backoff) | 1000 |
+
+```yaml
+templates:
+  - name: "build"
+    image: "jenkins/inbound-agent:latest"
+    connectionTimeoutSeconds: 300
+    idleTimeoutMinutes: 30
+    provisionRetryCount: 3
+    provisionRetryDelayMs: 1000
+```
+
+### Health Checks
+
+Подключение Docker health check к контейнеру агента для мониторинга его состояния
+во время работы. Health check включается только когда задан `healthCheckCommand` —
+плагин оборачивает команду как `CMD-SHELL`, поэтому достаточно указать shell-команду.
+
+| Поле | Описание | По умолчанию |
+|------|----------|--------------|
+| `healthCheckCommand` | Shell-команда, выполняемая внутри контейнера для проверки здоровья. Пусто = без health check | — |
+| `healthCheckIntervalSeconds` | Интервал между проверками | 30 |
+| `healthCheckTimeoutSeconds` | Время ожидания одной проверки, после которого она считается проваленной | 10 |
+| `healthCheckRetries` | Количество подряд идущих неудач до пометки контейнера unhealthy | 3 |
+
+```yaml
+templates:
+  - name: "with-healthcheck"
+    image: "jenkins/inbound-agent:latest"
+    healthCheckCommand: "curl -f http://localhost:8080/ || exit 1"
+    healthCheckIntervalSeconds: 30
+    healthCheckTimeoutSeconds: 10
+    healthCheckRetries: 3
+```
+
+Все эти поля объединяются через наследование шаблонов, как и остальные.
+
 ### Наследование шаблонов
 
 ```yaml
@@ -147,9 +195,41 @@ templates:
     inheritFrom: "base"
     labelString: "maven docker"
     environmentVariables:
-      - key: "MAVEN_OPTS"
+      - name: "MAVEN_OPTS"
         value: "-Xmx1g"
 ```
+
+Наследование разрешается на **нескольких уровнях**, поэтому можно строить иерархии
+(`base` → промежуточный → лист), и каждый шаблон объявляет только то, что добавляет:
+
+```yaml
+templates:
+  - name: "base"                 # общие дефолты для всего
+    image: "jenkins/inbound-agent:latest"
+    cpuLimit: "2.0"
+
+  - name: "jvm"                  # добавляет JVM-специфичные настройки
+    inheritFrom: "base"
+    environmentVariables:
+      - name: "JAVA_OPTS"
+        value: "-XX:MaxRAMPercentage=75"
+
+  - name: "maven"               # лист: наследует всю цепочку base → jvm
+    inheritFrom: "jvm"
+    labelString: "maven"
+```
+
+Правила разрешения:
+
+- Значения потомков приоритетнее значений предков; списки (переменные окружения,
+  монтирования, capabilities и т.д.) объединяются по всей цепочке.
+- Циклические ссылки (`a` → `b` → `a`) обнаруживаются и останавливаются с warning'ом
+  вместо бесконечной рекурсии.
+- Матчинг по меткам использует **разрешённый** (resolved) шаблон. Шаблон без
+  эффективного `labelString` — ни собственного, ни унаследованного, как `base`,
+  который держат только ради наследования, — матчит только job'ы без меток; он
+  **не** является catch-all и не создаёт агентов для job'ов, требующих конкретную
+  метку. Метки, объявленные на предке, наследуются, поэтому лист матчится и по ним.
 
 ### Эфемерные / One-Shot агенты
 
@@ -208,6 +288,29 @@ templates:
       - secretName: "my-secret"
         fileName: "secret.txt"
         targetPath: "/run/secrets"
+```
+
+### Docker Configs
+
+Docker Swarm **configs** работают как secrets, но предназначены для нечувствительных
+конфигурационных данных. Обязательно только `configName`; остальные поля опциональны.
+
+| Поле | Описание | По умолчанию |
+|------|----------|--------------|
+| `configName` | Имя существующего Docker Swarm config | Обязательно |
+| `targetPath` | Путь монтирования внутри контейнера | `/{configName}` |
+| `fileName` | Имя файла в целевом местоположении | Вычисляется из `targetPath` |
+| `fileMode` | Права на файл в octal (например `0644`) | — |
+| `uid` / `gid` | UID / GID владельца файла внутри контейнера | — |
+
+```yaml
+templates:
+  - name: "with-configs"
+    configs:
+      - configName: "app-config"
+        targetPath: "/etc/app/config.ini"
+        fileName: "config.ini"
+        fileMode: "0644"
 ```
 
 ### Аутентификация в Registry (Приватные образы)
@@ -318,6 +421,181 @@ templates:
 - Автоматическая проверка IP-адресов (IPv4 и IPv6)
 - Проверка формата hostname
 - Понятные сообщения об ошибках для некорректных записей
+
+### Node Mode (режим использования)
+
+`mode` управляет тем, какие job'ы принимают агенты шаблона, аналогично режимам
+использования (usage mode) Jenkins-нод.
+
+| Значение | Поведение |
+|----------|-----------|
+| `NORMAL` (по умолчанию) | Использовать шаблон максимально активно; также обслуживает job'ы без меток |
+| `EXCLUSIVE` | Выполнять только job'ы, чей label expression совпадает с метками шаблона |
+
+```yaml
+templates:
+  - name: "gpu"
+    labelString: "gpu"
+    mode: EXCLUSIVE        # зарезервирован исключительно для job'ов, запрашивающих "gpu"
+```
+
+### Переменные окружения
+
+Инъекция переменных окружения в контейнер агента. `name` и `value` обязательны;
+список объединяется через наследование шаблонов.
+
+```yaml
+templates:
+  - name: "maven"
+    environmentVariables:   # алиас: envVars
+      - name: "MAVEN_OPTS"
+        value: "-Xmx2g -XX:+UseG1GC"
+      - name: "JAVA_HOME"
+        value: "/opt/java/openjdk"
+```
+
+### Тома и монтирования
+
+Монтирование путей хоста, именованных volume'ов или tmpfs в контейнер агента.
+
+| Поле | Описание | По умолчанию |
+|------|----------|--------------|
+| `type` | `BIND` (путь на хосте), `VOLUME` (именованный volume) или `TMPFS` | Обязательно |
+| `source` | Путь на хосте или имя volume | Обязательно |
+| `target` | Путь монтирования внутри контейнера | Обязательно |
+| `readOnly` | Смонтировать источник только для чтения | `false` |
+
+```yaml
+templates:
+  - name: "maven"
+    mounts:                 # алиас: hostBinds
+      - type: BIND
+        source: "/var/cache/maven"
+        target: "/root/.m2/repository"
+        readOnly: false
+      - type: VOLUME
+        source: "jenkins-workspace"
+        target: "/workspace"
+```
+
+### Директории кеша сборки
+
+`cacheDirs` — список путей внутри контейнера (каждый должен начинаться с `/`),
+содержимое которых сохраняется между сборками для более быстрой инкрементальной
+работы. Записи объединяются через наследование шаблонов.
+
+```yaml
+templates:
+  - name: "maven"
+    cacheDirs:
+      - "/root/.m2/repository"
+      - "/tmp/build-cache"
+```
+
+### Публикация портов
+
+Публикация портов контейнера в ingress-сети Swarm. Формат `[hostPort:]containerPort[/protocol]`;
+пустой host-порт означает случайный, протокол по умолчанию `tcp`.
+
+```yaml
+templates:
+  - name: "with-ports"
+    portBindings:           # алиас: portBinds (newline-separated строковая форма)
+      - "8080:8080"         # host 8080 -> container 8080
+      - ":5900"             # случайный host-порт -> container 5900
+      - "443:8443/tcp"      # явный протокол
+```
+
+### Placement constraints и сетевые алиасы
+
+`placementConstraints` привязывают задачи агента к конкретным нодам Swarm (синтаксис
+Docker `--constraint`); `networkAliases` добавляют дополнительные DNS-алиасы в сети
+Swarm. Оба — списки и объединяются через наследование шаблонов.
+
+```yaml
+templates:
+  - name: "build"
+    placementConstraints:
+      - "node.role==worker"
+      - "node.labels.type==build"
+    networkAliases:
+      - "build-agent"
+```
+
+### Настройка DNS
+
+`dnsServers` задаёт кастомные резолверы, `dnsSearch` добавляет search-домены,
+`dnsOptions` передаёт опции резолвера. Все — списки, объединяются через наследование.
+
+```yaml
+templates:
+  - name: "build"
+    dnsServers:             # алиасы: dnsServersString / dnsIps (через запятую)
+      - "10.0.0.2"
+    dnsSearch:
+      - "internal.example.com"
+    dnsOptions:
+      - "ndots:2"
+```
+
+### Параметры ядра (sysctls)
+
+Установка kernel parameters на контейнере (Docker `--sysctl`). Записи вида `key=value`,
+объединяются через наследование шаблонов.
+
+```yaml
+templates:
+  - name: "tuned"
+    sysctls:                # алиас: sysctlsString (newline-separated)
+      - "net.core.somaxconn=1024"
+      - "net.ipv4.tcp_syncookies=0"
+```
+
+### Поведение при остановке контейнера
+
+Управление тем, как контейнер останавливается при удалении агента.
+
+| Поле | Описание | По умолчанию |
+|------|----------|--------------|
+| `stopSignal` | Сигнал, отправляемый для остановки контейнера (например `SIGTERM`, `SIGINT`) | Docker default (`SIGTERM`) |
+| `stopGracePeriod` | Сколько секунд ждать до принудительного завершения контейнера | 10 |
+
+```yaml
+templates:
+  - name: "graceful"
+    stopSignal: "SIGTERM"
+    stopGracePeriod: 30
+```
+
+### Профили безопасности
+
+Применение seccomp и AppArmor профилей к контейнеру агента (Docker Engine 29+).
+
+| Поле | Допустимые значения |
+|------|---------------------|
+| `seccompProfile` | `default`, `unconfined` или путь к кастомному профилю |
+| `apparmorProfile` | `runtime/default`, `unconfined` или имя кастомного профиля |
+
+```yaml
+templates:
+  - name: "hardened"
+    seccompProfile: "default"
+    apparmorProfile: "runtime/default"
+```
+
+### Generic Resources (GPU)
+
+Запрос generic resources Swarm, таких как GPU. Каждая запись имеет вид `Kind=value`;
+ноды должны объявлять соответствующий ресурс. Записи объединяются через наследование.
+
+```yaml
+templates:
+  - name: "ml"
+    labelString: "gpu"
+    genericResources:       # алиас: genericResourcesString ("NVIDIA-GPU=1, FPGA=2")
+      - kind: "NVIDIA-GPU"
+        value: 1
+```
 
 ## Pipeline DSL
 
@@ -460,8 +738,8 @@ templates:
 
 - Обзор состояния кластера
 - Статус нод и ресурсы
-- Список активных сервисов
-- Поддержка тёмной темы
+- Список активных сервисов с указанием Swarm-ноды, на которой работает каждый агент
+- Поддержка светлой и тёмной темы
 
 ## Prometheus метрики
 
